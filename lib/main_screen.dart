@@ -1,10 +1,12 @@
-// 多平台響應式導覽主框架（整合手機底部 NavigationBar / Drawer 與桌面側邊欄 NavigationRail）
+// 多平台響應式導覽主框架（整合手機底部 NavigationBar / Drawer 與桌面側邊欄 NavigationRail，並串接 Firebase Auth 登入狀態與登出）
 import 'package:flutter/material.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/timetable_screen.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/graduation_screen.dart';
 import 'screens/expense_screen.dart';
+import 'services/auth_service.dart';
+import 'widgets/app_notification.dart';
 import 'widgets/responsive_layout.dart';
 
 class _NavItem {
@@ -73,12 +75,86 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  /// 執行帳號登出確認與呼叫
+  Future<void> _handleSignOut(BuildContext context) async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('確認登出'),
+          ],
+        ),
+        content: const Text('確定要登出目前帳號嗎？登出後需重新輸入電子信箱與密碼登入。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('登出'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true && context.mounted) {
+      try {
+        await AuthService().signOut();
+        if (context.mounted) {
+          AppNotification.show(
+            context,
+            title: '已安全登出',
+            message: '您已成功登出帳號。',
+            icon: Icons.check_circle_outline,
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          AppNotification.show(
+            context,
+            title: '登出失敗',
+            message: e.toString(),
+            icon: Icons.error_outline,
+          );
+        }
+      }
+    }
+  }
+
+  /// 取得當前使用者名稱與電子信箱資訊
+  ({String displayName, String email, String initial}) _getUserProfile() {
+    final user = AuthService().currentUser;
+    final email = user?.email ?? '';
+    final rawName = user?.displayName?.trim() ?? '';
+    final name = rawName.isNotEmpty
+        ? rawName
+        : (widget.userName.trim().isNotEmpty
+            ? widget.userName.trim()
+            : (email.isNotEmpty ? email.split('@').first : '同學'));
+    final initial = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'U';
+
+    return (displayName: name, email: email, initial: initial);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final userProfile = _getUserProfile();
+
     final List<Widget> pages = [
       DashboardScreen(
         onNavigateToTab: _switchTab,
-        userName: widget.userName,
+        userName: userProfile.displayName,
       ),
       const TimetableScreen(),
       const CalendarScreen(),
@@ -95,7 +171,7 @@ class _MainScreenState extends State<MainScreen> {
     return ResponsiveLayout(
       // 1. 窄螢幕模式：Android 顯示底部 NavigationBar；Web 小介面隱藏底部導覽列、使用左上角 Drawer
       mobile: Scaffold(
-        drawer: _buildMobileDrawer(context),
+        drawer: _buildMobileDrawer(context, userProfile),
         body: currentPage,
         bottomNavigationBar: showBottomNav
             ? NavigationBar(
@@ -129,9 +205,26 @@ class _MainScreenState extends State<MainScreen> {
                     radius: 20,
                     backgroundColor:
                         Theme.of(context).colorScheme.primaryContainer,
-                    child: Icon(
-                      Icons.school_rounded,
-                      color: Theme.of(context).colorScheme.primary,
+                    child: Text(
+                      userProfile.initial,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ),
+                trailing: Expanded(
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: IconButton(
+                        icon: const Icon(Icons.logout_rounded),
+                        tooltip: '登出帳號 (${userProfile.email.isNotEmpty ? userProfile.email : userProfile.displayName})',
+                        color: Theme.of(context).colorScheme.error,
+                        onPressed: () => _handleSignOut(context),
+                      ),
                     ),
                   ),
                 ),
@@ -157,7 +250,7 @@ class _MainScreenState extends State<MainScreen> {
         body: SafeArea(
           child: Row(
             children: [
-              _buildDesktopSidebar(context),
+              _buildDesktopSidebar(context, userProfile),
               const VerticalDivider(thickness: 1, width: 1),
               Expanded(child: currentPage),
             ],
@@ -167,17 +260,20 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  /// 手機端抽屜選單（Drawer），搭配底部導覽列提供雙重便利性
-  Widget _buildMobileDrawer(BuildContext context) {
+  /// 手機端抽屜選單（Drawer），搭配底部導覽列提供雙重便利性，並展示登入者 Email 與登出功能
+  Widget _buildMobileDrawer(
+    BuildContext context,
+    ({String displayName, String email, String initial}) userProfile,
+  ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final hasUser = widget.userName.trim().isNotEmpty;
 
     return Drawer(
       child: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // 使用者資訊頂部橫幅
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -188,19 +284,14 @@ class _MainScreenState extends State<MainScreen> {
                   CircleAvatar(
                     radius: 24,
                     backgroundColor: colorScheme.primary,
-                    child: hasUser
-                        ? Text(
-                            widget.userName.trim().substring(0, 1),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.person_outline,
-                            color: Colors.white,
-                          ),
+                    child: Text(
+                      userProfile.initial,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -208,18 +299,24 @@ class _MainScreenState extends State<MainScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          hasUser ? widget.userName : '尚未設定使用者',
+                          userProfile.displayName,
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         Text(
-                          widget.userDepartment.isNotEmpty
-                              ? widget.userDepartment
-                              : '尚無系級資料',
+                          userProfile.email.isNotEmpty
+                              ? userProfile.email
+                              : (widget.userDepartment.isNotEmpty
+                                  ? widget.userDepartment
+                                  : '已登入使用者'),
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colorScheme.onSurfaceVariant,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
@@ -228,6 +325,8 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
             const SizedBox(height: 8),
+
+            // 導覽選單項目
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -260,8 +359,37 @@ class _MainScreenState extends State<MainScreen> {
                 },
               ),
             ),
+
+            const Divider(height: 1, indent: 16, endIndent: 16),
+
+            // 登出按鈕
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: ListTile(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                leading: Icon(
+                  Icons.logout_rounded,
+                  color: colorScheme.error,
+                ),
+                title: Text(
+                  '登出帳號',
+                  style: TextStyle(
+                    color: colorScheme.error,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _handleSignOut(context);
+                },
+              ),
+            ),
+
+            // 平台環境標籤
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
               child: Text(
                 '目前環境：${ResponsiveLayout.platformLabel(context)}',
                 style: theme.textTheme.labelSmall?.copyWith(
@@ -276,11 +404,13 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  /// Web / Windows 桌面端展開式側邊欄導航（含品牌標題與底部學生資訊卡）
-  Widget _buildDesktopSidebar(BuildContext context) {
+  /// Web / Windows 桌面端展開式側邊欄導航（含品牌標題與底部使用者資訊與登出卡片）
+  Widget _buildDesktopSidebar(
+    BuildContext context,
+    ({String displayName, String email, String initial}) userProfile,
+  ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final hasUser = widget.userName.trim().isNotEmpty;
 
     return Container(
       width: 250,
@@ -351,7 +481,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
 
-          // 底部使用者資訊卡片
+          // 底部使用者資訊與登出卡片
           Container(
             margin: const EdgeInsets.all(16),
             padding: const EdgeInsets.all(12),
@@ -367,19 +497,13 @@ class _MainScreenState extends State<MainScreen> {
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: colorScheme.primaryContainer,
-                  child: hasUser
-                      ? Text(
-                          widget.userName.trim().substring(0, 1),
-                          style: TextStyle(
-                            color: colorScheme.onPrimaryContainer,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        )
-                      : Icon(
-                          Icons.person_outline,
-                          size: 18,
-                          color: colorScheme.onPrimaryContainer,
-                        ),
+                  child: Text(
+                    userProfile.initial,
+                    style: TextStyle(
+                      color: colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -387,21 +511,33 @@ class _MainScreenState extends State<MainScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        hasUser ? widget.userName : '尚未設定使用者',
+                        userProfile.displayName,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        widget.creditSummary.isNotEmpty
-                            ? widget.creditSummary
-                            : '尚無系級與學分資料',
+                        userProfile.email.isNotEmpty
+                            ? userProfile.email
+                            : (widget.creditSummary.isNotEmpty
+                                ? widget.creditSummary
+                                : '已登入使用者'),
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.logout_rounded, size: 20),
+                  tooltip: '登出帳號',
+                  color: colorScheme.error,
+                  onPressed: () => _handleSignOut(context),
                 ),
               ],
             ),

@@ -1,5 +1,6 @@
 // 主畫面 / 首頁（支援 Android 單欄直式與 Web / Windows 雙欄多格響應式排版）
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import '../widgets/hoverable_card.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/app_notification.dart';
@@ -125,22 +126,141 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: colorScheme.primaryContainer,
-              child: hasUser
-                  ? Text(
-                      widget.userName.trim().substring(0, 1),
-                      style: TextStyle(
-                        color: colorScheme.onPrimaryContainer,
-                        fontWeight: FontWeight.bold,
+            child: PopupMenuButton<String>(
+              tooltip: '個人帳號與設定',
+              offset: const Offset(0, 48),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              onSelected: (val) async {
+                if (val == 'logout') {
+                  final shouldLogout = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                    )
-                  : Icon(
-                      Icons.person_outline,
-                      size: 18,
-                      color: colorScheme.onPrimaryContainer,
+                      title: const Row(
+                        children: [
+                          Icon(Icons.logout_rounded, color: Colors.redAccent),
+                          SizedBox(width: 8),
+                          Text('確認登出'),
+                        ],
+                      ),
+                      content: const Text('確定要登出目前帳號嗎？登出後需重新輸入電子信箱與密碼登入。'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(false),
+                          child: const Text('取消'),
+                        ),
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                            backgroundColor:
+                                Theme.of(ctx).colorScheme.error,
+                            foregroundColor:
+                                Theme.of(ctx).colorScheme.onError,
+                          ),
+                          onPressed: () => Navigator.of(ctx).pop(true),
+                          child: const Text('登出'),
+                        ),
+                      ],
                     ),
+                  );
+
+                  if (shouldLogout == true && context.mounted) {
+                    try {
+                      await AuthService().signOut();
+                      if (context.mounted) {
+                        AppNotification.show(
+                          context,
+                          title: '已登出',
+                          message: '您已成功登出帳號。',
+                          icon: Icons.check_circle_outline,
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        AppNotification.show(
+                          context,
+                          title: '登出失敗',
+                          message: e.toString(),
+                          icon: Icons.error_outline,
+                        );
+                      }
+                    }
+                  }
+                }
+              },
+              itemBuilder: (ctx) {
+                final user = AuthService().currentUser;
+                final email = user?.email ?? '';
+                final displayName = hasUser ? widget.userName : (email.isNotEmpty ? email.split('@').first : '同學');
+
+                return [
+                  PopupMenuItem<String>(
+                    enabled: false,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          displayName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                            fontSize: 15,
+                          ),
+                        ),
+                        if (email.isNotEmpty)
+                          Text(
+                            email,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem<String>(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.logout_rounded,
+                          color: Colors.redAccent,
+                          size: 20,
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          '登出帳號',
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ];
+              },
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: colorScheme.primaryContainer,
+                child: hasUser
+                    ? Text(
+                        widget.userName.trim().substring(0, 1),
+                        style: TextStyle(
+                          color: colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      )
+                    : Icon(
+                        Icons.person_outline,
+                        size: 18,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+              ),
             ),
           ),
         ],

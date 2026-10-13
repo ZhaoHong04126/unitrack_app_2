@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:unitrack_app_2/main.dart';
+import 'package:unitrack_app_2/main_screen.dart';
 
 void main() {
   testWidgets('點擊通知按鈕在桌面視窗寬度下於右上角彈出通知卡片', (WidgetTester tester) async {
@@ -12,7 +13,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(const CampusAssistantApp());
+    await tester.pumpWidget(const CampusAssistantApp(home: MainScreen()));
     await tester.pumpAndSettle();
 
     // 找到系統通知按鈕
@@ -47,7 +48,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(const CampusAssistantApp());
+    await tester.pumpWidget(const CampusAssistantApp(home: MainScreen()));
     await tester.pumpAndSettle();
 
     final notificationBtn = find.byTooltip('系統通知');

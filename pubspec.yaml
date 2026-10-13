@@ -38,6 +38,8 @@ dependencies:
   flutter_web_plugins:
     sdk: flutter
   shared_preferences: ^2.5.6
+  firebase_auth: ^6.7.0
+  cloud_firestore: ^6.10.0
 
 dev_dependencies:
   flutter_test:
