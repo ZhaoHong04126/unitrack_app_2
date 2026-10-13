@@ -1,7 +1,9 @@
-// 課表畫面（支援週一至週五/週末彈性切換、課程新增/詳情/編輯/刪除、手機橫向滑動與桌面平鋪響應式佈局）
+// 課表畫面（支援週一至週五/週末彈性切換、課程新增/詳情/編輯/刪除、手機橫向滑動與桌面平鋪響應式佈局，串接 Cloud Firestore 雲端即時同步）
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/course.dart';
+import '../services/course_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/app_notification.dart';
 
@@ -26,10 +28,11 @@ class _TimetableScreenState extends State<TimetableScreen> {
   final ScrollController _verticalScrollController = ScrollController();
   final ScrollController _horizontalScrollController = ScrollController();
 
-  /// 課程狀態列表（預設為空列表）
-  late final List<Course> _courses = List<Course>.from(widget.initialCourses);
+  /// 課程狀態快取列表（由 Firestore 串流即時更新）
+  List<Course> _courses = [];
+  List<Course>? _lastCourses;
 
-  /// 是否顯示週末（週六、週日）
+  /// 是否手動切換顯示週末（週六、週日）
   bool _showWeekend = false;
 
   /// 每節課列的高度（足夠在單節高度內完整呈現課程名稱、教室代碼與授課教師）
@@ -44,6 +47,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
   @override
   void initState() {
     super.initState();
+    _courses = List<Course>.from(widget.initialCourses);
     // 若初始課程包含週六或週日，自動開啟週末顯示
     if (_courses.any((c) => c.weekday >= 6)) {
       _showWeekend = true;
@@ -57,7 +61,8 @@ class _TimetableScreenState extends State<TimetableScreen> {
     super.dispose();
   }
 
-  int get _visibleDayCount => _showWeekend ? 7 : 5;
+  int get _visibleDayCount =>
+      (_showWeekend || _courses.any((c) => c.weekday >= 6)) ? 7 : 5;
 
   int get _totalCredits =>
       _courses.fold<int>(0, (sum, course) => sum + course.credits);
@@ -573,21 +578,26 @@ class _TimetableScreenState extends State<TimetableScreen> {
     professorController.dispose();
 
     if (result != null && mounted) {
-      setState(() {
-        if (isEditing) {
-          final index = _courses.indexWhere((c) => c.id == existingCourse.id);
-          if (index != -1) {
-            _courses[index] = result;
-          }
-        } else {
-          _courses.add(result);
+      try {
+        await CourseService().saveCourse(result);
+        if (mounted) {
+          AppNotification.show(
+            context,
+            title: isEditing ? '課程更新成功' : '新增課程成功',
+            message: '已將「${result.name}」同步儲存至雲端課表',
+            icon: Icons.cloud_done_rounded,
+          );
         }
-        // 若新增或修改至週末，自動開啟週末欄位顯示
-        if (result.weekday >= 6) {
-          _showWeekend = true;
+      } catch (e) {
+        if (mounted) {
+          AppNotification.show(
+            context,
+            title: '儲存失敗',
+            message: '無法同步儲存至雲端資料庫：${e.toString().replaceFirst("Exception: ", "")}',
+            icon: Icons.error_outline,
+          );
         }
-      });
-      _notifyChanged();
+      }
     }
   }
 
@@ -787,31 +797,43 @@ class _TimetableScreenState extends State<TimetableScreen> {
     );
   }
 
-  /// 刪除課程並提供 SnackBar 復原機制
-  void _deleteCourse(Course course) {
-    final removedIndex = _courses.indexWhere((c) => c.id == course.id);
-    if (removedIndex == -1) return;
-
-    setState(() {
-      _courses.removeAt(removedIndex);
-    });
-    _notifyChanged();
-
-    AppNotification.show(
-      context,
-      title: '課程異動',
-      message: '已刪除課程「${course.name}」',
-      icon: Icons.delete_outline_rounded,
-      actionLabel: '復原',
-      onAction: () {
-        if (!mounted) return;
-        setState(() {
-          final insertIdx = removedIndex.clamp(0, _courses.length);
-          _courses.insert(insertIdx, course);
-        });
-        _notifyChanged();
-      },
-    );
+  /// 刪除課程並提供雲端復原機制
+  Future<void> _deleteCourse(Course course) async {
+    try {
+      await CourseService().deleteCourse(course.id);
+      if (mounted) {
+        AppNotification.show(
+          context,
+          title: '課程已刪除',
+          message: '已自雲端課表移除「${course.name}」',
+          icon: Icons.delete_outline_rounded,
+          actionLabel: '復原',
+          onAction: () async {
+            try {
+              await CourseService().saveCourse(course);
+            } catch (e) {
+              if (mounted) {
+                AppNotification.show(
+                  context,
+                  title: '復原失敗',
+                  message: e.toString().replaceFirst('Exception: ', ''),
+                  icon: Icons.error_outline,
+                );
+              }
+            }
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        AppNotification.show(
+          context,
+          title: '刪除失敗',
+          message: '無法自雲端刪除課程：${e.toString().replaceFirst("Exception: ", "")}',
+          icon: Icons.error_outline,
+        );
+      }
+    }
   }
 
   /// 清空所有課程確認對話框
@@ -820,7 +842,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('清空課表'),
-        content: const Text('確定要移除目前課表中的所有課程嗎？'),
+        content: const Text('確定要移除雲端課表中的所有課程嗎？此動作將同步自雲端資料庫刪除。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -838,10 +860,26 @@ class _TimetableScreenState extends State<TimetableScreen> {
     );
 
     if (confirmed == true && mounted) {
-      setState(() {
-        _courses.clear();
-      });
-      _notifyChanged();
+      try {
+        await CourseService().clearAllCourses();
+        if (mounted) {
+          AppNotification.show(
+            context,
+            title: '課表已清空',
+            message: '已成功移除所有雲端課程。',
+            icon: Icons.delete_sweep_rounded,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          AppNotification.show(
+            context,
+            title: '清空失敗',
+            message: '無法清空雲端課表：${e.toString().replaceFirst("Exception: ", "")}',
+            icon: Icons.error_outline,
+          );
+        }
+      }
     }
   }
 
@@ -850,146 +888,265 @@ class _TimetableScreenState extends State<TimetableScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      backgroundColor: colorScheme.surfaceContainerLowest,
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 2,
-        backgroundColor: colorScheme.surface,
-        leading: ResponsiveLayout.buildDrawerLeading(context),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '學期課程表',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              _courses.isEmpty
-                  ? '尚未排定課程 ・ 點擊右上角按鈕即可新增'
-                  : '共 ${_courses.length} 門課程 ・ 總計 $_totalCredits 學分',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          // 週末切換開關（週一至週五 / 週一至週日）
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: FilterChip(
-              selected: _showWeekend,
-              showCheckmark: false,
-              avatar: Icon(
-                _showWeekend
-                    ? Icons.date_range_rounded
-                    : Icons.view_week_outlined,
-                size: 16,
-                color: _showWeekend
-                    ? colorScheme.onSecondaryContainer
-                    : colorScheme.onSurfaceVariant,
-              ),
-              label: Text(_showWeekend ? '含週末 (7天)' : '週一至週五'),
-              onSelected: (val) {
-                setState(() {
-                  _showWeekend = val;
-                });
-              },
-            ),
-          ),
-          const SizedBox(width: 8),
-          if (_courses.isNotEmpty)
-            IconButton(
-              tooltip: '清空課表',
-              onPressed: _confirmClearAllCourses,
-              icon: const Icon(Icons.delete_sweep_outlined),
-            ),
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: FilledButton.icon(
-              onPressed: () => _showCourseFormDialog(),
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('新增課程'),
-            ),
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            // 桌面或寬視窗 (>= 680px) 直接平鋪完整週課表；窄視窗 (< 680px) 啟用橫向滑動檢視
-            final isDesktopTiled = constraints.maxWidth >= 680;
-            final horizontalPadding = isDesktopTiled ? 24.0 : 12.0;
+    return StreamBuilder<List<Course>>(
+      stream: CourseService().getCoursesStream(),
+      initialData:
+          widget.initialCourses.isNotEmpty ? widget.initialCourses : null,
+      builder: (context, snapshot) {
+        final isLoading =
+            snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData;
+        final hasError = snapshot.hasError;
+        final currentCourses =
+            snapshot.data ?? (snapshot.hasError ? [] : _courses);
+        _courses = currentCourses;
 
-            return Scrollbar(
-              controller: _verticalScrollController,
-              thumbVisibility: ResponsiveLayout.isDesktopOrWebPlatform(context),
-              child: SingleChildScrollView(
-                controller: _verticalScrollController,
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPadding,
-                  16,
-                  horizontalPadding,
-                  28,
+        // 若有週末課程且尚未開啟，自動切換
+        final effectiveShowWeekend =
+            _showWeekend || currentCourses.any((c) => c.weekday >= 6);
+
+        // 通知外部課程變更（若有監聽器）
+        if (!listEquals(_lastCourses, currentCourses)) {
+          _lastCourses = List<Course>.from(currentCourses);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _notifyChanged();
+          });
+        }
+
+        Widget bodyContent;
+        if (isLoading) {
+          bodyContent = const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text(
+                  '正在同步雲端課表資料...',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
                 ),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: Breakpoints.desktopMaxContentWidth,
+              ],
+            ),
+          );
+        } else if (hasError) {
+          bodyContent = Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.cloud_off_rounded,
+                    size: 52,
+                    color: colorScheme.error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '雲端課表載入失敗',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // 頂部統計與操作提示列（空列表時呈現優雅的空課表狀態）
-                        if (_courses.isEmpty)
-                          _buildEmptyTimetableBanner(context)
-                        else
-                          _buildCourseSummaryBar(context),
-                        const SizedBox(height: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${snapshot.error}'.replaceFirst('Exception: ', ''),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.tonalIcon(
+                    onPressed: () => setState(() {}),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('重新整理'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        } else {
+          bodyContent = LayoutBuilder(
+            builder: (context, constraints) {
+              // 桌面或寬視窗 (>= 680px) 直接平鋪完整週課表；窄視窗 (< 680px) 啟用橫向滑動檢視
+              final isDesktopTiled = constraints.maxWidth >= 680;
+              final horizontalPadding = isDesktopTiled ? 24.0 : 12.0;
 
-                        // 手機端橫向滑動提示列
-                        if (!isDesktopTiled)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.swipe_rounded,
-                                  size: 15,
-                                  color: colorScheme.primary,
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    '手機檢視模式：可左右滑動瀏覽完整週課表',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: colorScheme.onSurfaceVariant,
+              return Scrollbar(
+                controller: _verticalScrollController,
+                thumbVisibility:
+                    ResponsiveLayout.isDesktopOrWebPlatform(context),
+                child: SingleChildScrollView(
+                  controller: _verticalScrollController,
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    16,
+                    horizontalPadding,
+                    28,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: Breakpoints.desktopMaxContentWidth,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // 頂部統計與操作提示列（空列表時呈現優雅的空課表狀態）
+                          if (currentCourses.isEmpty)
+                            _buildEmptyTimetableBanner(context)
+                          else
+                            _buildCourseSummaryBar(context),
+                          const SizedBox(height: 14),
+
+                          // 手機端橫向滑動提示列
+                          if (!isDesktopTiled)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.swipe_rounded,
+                                    size: 15,
+                                    color: colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      '手機檢視模式：可左右滑動瀏覽完整週課表',
+                                      style:
+                                          theme.textTheme.labelSmall?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
 
-                        // 課表主體（依視窗寬度自動切換「平鋪完整週課表」或「橫向滑動課表」）
-                        _buildResponsiveTimetableContainer(
-                          context: context,
-                          availableWidth:
-                              constraints.maxWidth - (horizontalPadding * 2),
-                          isDesktopTiled: isDesktopTiled,
-                        ),
-                      ],
+                          // 課表主體（依視窗寬度自動切換「平鋪完整週課表」或「橫向滑動課表」）
+                          _buildResponsiveTimetableContainer(
+                            context: context,
+                            availableWidth:
+                                constraints.maxWidth - (horizontalPadding * 2),
+                            isDesktopTiled: isDesktopTiled,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
+              );
+            },
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: colorScheme.surfaceContainerLowest,
+          appBar: AppBar(
+            elevation: 0,
+            scrolledUnderElevation: 2,
+            backgroundColor: colorScheme.surface,
+            leading: ResponsiveLayout.buildDrawerLeading(context),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '學期課程表',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.cloud_done_rounded,
+                            size: 12,
+                            color: Colors.green,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            '雲端同步',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  isLoading
+                      ? '載入中...'
+                      : (currentCourses.isEmpty
+                          ? '尚未排定課程 ・ 點擊右上角按鈕即可新增'
+                          : '共 ${currentCourses.length} 門課程 ・ 總計 $_totalCredits 學分'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              // 週末切換開關（週一至週五 / 週一至週日）
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: FilterChip(
+                  selected: effectiveShowWeekend,
+                  showCheckmark: false,
+                  avatar: Icon(
+                    effectiveShowWeekend
+                        ? Icons.date_range_rounded
+                        : Icons.view_week_outlined,
+                    size: 16,
+                    color: effectiveShowWeekend
+                        ? colorScheme.onSecondaryContainer
+                        : colorScheme.onSurfaceVariant,
+                  ),
+                  label: Text(effectiveShowWeekend ? '含週末 (7天)' : '週一至週五'),
+                  onSelected: (val) {
+                    setState(() {
+                      _showWeekend = val;
+                    });
+                  },
+                ),
               ),
-            );
-          },
-        ),
-      ),
+              const SizedBox(width: 8),
+              if (currentCourses.isNotEmpty)
+                IconButton(
+                  tooltip: '清空課表',
+                  onPressed: _confirmClearAllCourses,
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                ),
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: FilledButton.icon(
+                  onPressed: () => _showCourseFormDialog(),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('新增課程'),
+                ),
+              ),
+            ],
+          ),
+          body: SafeArea(child: bodyContent),
+        );
+      },
     );
   }
 
@@ -1456,20 +1613,26 @@ class _TimetableScreenState extends State<TimetableScreen> {
         final isLastRow = sectionIndex == maxSection;
 
         slots.add(
-          Container(
-            height: _sectionRowHeight,
-            decoration: BoxDecoration(
-              border: Border(
-                left: BorderSide(
-                  color: colorScheme.outlineVariant.withValues(alpha: 0.55),
+          InkWell(
+            onTap: () => _showCourseFormDialog(
+              initialWeekday: weekday,
+              initialSection: sectionIndex,
+            ),
+            child: Container(
+              height: _sectionRowHeight,
+              decoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.55),
+                  ),
+                  bottom: !isLastRow
+                      ? BorderSide(
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.45,
+                          ),
+                        )
+                      : BorderSide.none,
                 ),
-                bottom: !isLastRow
-                    ? BorderSide(
-                        color: colorScheme.outlineVariant.withValues(
-                          alpha: 0.45,
-                        ),
-                      )
-                    : BorderSide.none,
               ),
             ),
           ),

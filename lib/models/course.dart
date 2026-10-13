@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 enum CourseType {
@@ -231,4 +232,70 @@ class Course {
       color: color ?? this.color,
     );
   }
+
+  /// 轉成 Cloud Firestore 寫入資料（不含文件 ID）
+  Map<String, dynamic> toFirestore() {
+    return {
+      'name': name,
+      'classroom': classroom,
+      'professor': professor,
+      'weekday': weekday,
+      'startSection': startSection,
+      'endSection': endSection,
+      'credits': credits,
+      'type': type.name,
+      'color': color.toARGB32(),
+    };
+  }
+
+  /// 從 Cloud Firestore 快照反序列化為 Course 實例
+  factory Course.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> snapshot, [
+    SnapshotOptions? options,
+  ]) {
+    final data = snapshot.data();
+    return Course.fromMap(data ?? {}, id: snapshot.id);
+  }
+
+  /// 轉為通用 Map
+  Map<String, dynamic> toMap() {
+    final map = toFirestore();
+    map['id'] = id;
+    return map;
+  }
+
+  /// 從通用 Map 建立 Course 實例
+  factory Course.fromMap(Map<String, dynamic> map, {required String id}) {
+    final colorValue = map['color'];
+    Color parsedColor = Colors.indigo;
+    if (colorValue is int) {
+      parsedColor = Color(colorValue);
+    }
+
+    final typeStr = map['type'] as String?;
+    final parsedType = CourseType.values.firstWhere(
+      (t) => t.name == typeStr,
+      orElse: () => CourseType.required,
+    );
+
+    return Course(
+      id: id,
+      name: map['name'] as String? ?? '',
+      classroom: map['classroom'] as String? ?? '',
+      professor: map['professor'] as String? ?? '',
+      weekday: (map['weekday'] as num?)?.toInt() ?? 1,
+      startSection: (map['startSection'] as num?)?.toInt() ?? 1,
+      endSection: (map['endSection'] as num?)?.toInt() ?? 1,
+      credits: (map['credits'] as num?)?.toInt() ?? 3,
+      type: parsedType,
+      color: parsedColor,
+    );
+  }
+
+  /// 支援 JSON 序列化
+  Map<String, dynamic> toJson() => toMap();
+
+  /// 支援 JSON 反序列化
+  factory Course.fromJson(Map<String, dynamic> json, {String? id}) =>
+      Course.fromMap(json, id: id ?? json['id'] as String? ?? '');
 }

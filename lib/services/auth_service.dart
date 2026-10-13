@@ -71,8 +71,9 @@ class AuthService {
             'createdAt': FieldValue.serverTimestamp(),
             'lastLoginAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
+          debugPrint('✅ 成功儲存使用者資料至 Cloud Firestore: ${user.uid}');
         } catch (e) {
-          debugPrint('Firestore 儲存個人資料警告 (不影響註冊流程): $e');
+          debugPrint('⚠️ [Firestore 儲存失敗] 請檢查 Firebase Console 是否已建立 Firestore Database 或安全規則 (Security Rules) 是否允許寫入: $e');
         }
       }
 
