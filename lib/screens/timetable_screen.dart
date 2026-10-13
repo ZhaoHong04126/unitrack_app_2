@@ -1041,6 +1041,8 @@ class _TimetableScreenState extends State<TimetableScreen> {
           );
         }
 
+        final isMobile = ResponsiveLayout.isMobile(context);
+
         return Scaffold(
           backgroundColor: colorScheme.surfaceContainerLowest,
           appBar: AppBar(
@@ -1048,45 +1050,57 @@ class _TimetableScreenState extends State<TimetableScreen> {
             scrolledUnderElevation: 2,
             backgroundColor: colorScheme.surface,
             leading: ResponsiveLayout.buildDrawerLeading(context),
+            titleSpacing: isMobile ? 4 : null,
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      '學期課程表',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
+                    Flexible(
+                      child: Text(
+                        '學期課程表',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.cloud_done_rounded,
-                            size: 12,
-                            color: Colors.green,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            '雲端同步',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
+                    const SizedBox(width: 6),
+                    Tooltip(
+                      message: '雲端資料即時同步',
+                      child: Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile ? 4 : 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.cloud_done_rounded,
+                              size: 12,
                               color: Colors.green,
                             ),
-                          ),
-                        ],
+                            if (!isMobile) ...[
+                              const SizedBox(width: 4),
+                              const Text(
+                                '雲端同步',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -1095,53 +1109,103 @@ class _TimetableScreenState extends State<TimetableScreen> {
                   isLoading
                       ? '載入中...'
                       : (currentCourses.isEmpty
-                          ? '尚未排定課程 ・ 點擊右上角按鈕即可新增'
-                          : '共 ${currentCourses.length} 門課程 ・ 總計 $_totalCredits 學分'),
+                          ? (isMobile ? '尚未排定課程' : '尚未排定課程 ・ 點擊右上角按鈕即可新增')
+                          : (isMobile
+                              ? '共 ${currentCourses.length} 門 ・ $_totalCredits 學分'
+                              : '共 ${currentCourses.length} 門課程 ・ 總計 $_totalCredits 學分')),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
             actions: [
-              // 週末切換開關（週一至週五 / 週一至週日）
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: FilterChip(
-                  selected: effectiveShowWeekend,
-                  showCheckmark: false,
-                  avatar: Icon(
+              if (isMobile) ...[
+                // 手機端精簡動作按鈕：避免頂部橫條寬度溢位 (Overflow)
+                IconButton(
+                  tooltip:
+                      effectiveShowWeekend ? '切換為週一至週五' : '切換為含週末 (7天)',
+                  icon: Icon(
                     effectiveShowWeekend
                         ? Icons.date_range_rounded
                         : Icons.view_week_outlined,
-                    size: 16,
                     color: effectiveShowWeekend
-                        ? colorScheme.onSecondaryContainer
+                        ? colorScheme.primary
                         : colorScheme.onSurfaceVariant,
                   ),
-                  label: Text(effectiveShowWeekend ? '含週末 (7天)' : '週一至週五'),
-                  onSelected: (val) {
+                  onPressed: () {
                     setState(() {
-                      _showWeekend = val;
+                      _showWeekend = !_showWeekend;
                     });
                   },
                 ),
-              ),
-              const SizedBox(width: 8),
-              if (currentCourses.isNotEmpty)
-                IconButton(
-                  tooltip: '清空課表',
-                  onPressed: _confirmClearAllCourses,
-                  icon: const Icon(Icons.delete_sweep_outlined),
+                if (currentCourses.isNotEmpty)
+                  IconButton(
+                    tooltip: '清空課表',
+                    onPressed: _confirmClearAllCourses,
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      minimumSize: const Size(36, 36),
+                    ),
+                    onPressed: () => _showCourseFormDialog(),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add_rounded, size: 18),
+                        SizedBox(width: 4),
+                        Text('新增'),
+                      ],
+                    ),
+                  ),
                 ),
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: FilledButton.icon(
-                  onPressed: () => _showCourseFormDialog(),
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('新增課程'),
+              ] else ...[
+                // 桌面與平板寬螢幕模式：完整文字 FilterChip 與按鈕
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: FilterChip(
+                    selected: effectiveShowWeekend,
+                    showCheckmark: false,
+                    avatar: Icon(
+                      effectiveShowWeekend
+                          ? Icons.date_range_rounded
+                          : Icons.view_week_outlined,
+                      size: 16,
+                      color: effectiveShowWeekend
+                          ? colorScheme.onSecondaryContainer
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                    label:
+                        Text(effectiveShowWeekend ? '含週末 (7天)' : '週一至週五'),
+                    onSelected: (val) {
+                      setState(() {
+                        _showWeekend = val;
+                      });
+                    },
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                if (currentCourses.isNotEmpty)
+                  IconButton(
+                    tooltip: '清空課表',
+                    onPressed: _confirmClearAllCourses,
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: FilledButton.icon(
+                    onPressed: () => _showCourseFormDialog(),
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('新增課程'),
+                  ),
+                ),
+              ],
             ],
           ),
           body: SafeArea(child: bodyContent),
