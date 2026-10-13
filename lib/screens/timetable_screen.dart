@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/course.dart';
 import '../widgets/responsive_layout.dart';
+import '../widgets/app_notification.dart';
 
 class TimetableScreen extends StatefulWidget {
   /// 外部可傳入初始課程列表（預設為空列表，呈現優雅的空課表狀態）
@@ -796,23 +797,20 @@ class _TimetableScreenState extends State<TimetableScreen> {
     });
     _notifyChanged();
 
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('已刪除課程「${course.name}」'),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: '復原',
-          onPressed: () {
-            if (!mounted) return;
-            setState(() {
-              final insertIdx = removedIndex.clamp(0, _courses.length);
-              _courses.insert(insertIdx, course);
-            });
-            _notifyChanged();
-          },
-        ),
-      ),
+    AppNotification.show(
+      context,
+      title: '課程異動',
+      message: '已刪除課程「${course.name}」',
+      icon: Icons.delete_outline_rounded,
+      actionLabel: '復原',
+      onAction: () {
+        if (!mounted) return;
+        setState(() {
+          final insertIdx = removedIndex.clamp(0, _courses.length);
+          _courses.insert(insertIdx, course);
+        });
+        _notifyChanged();
+      },
     );
   }
 

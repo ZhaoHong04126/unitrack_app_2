@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/hoverable_card.dart';
 import '../widgets/responsive_layout.dart';
+import '../widgets/app_notification.dart';
 import 'timetable_screen.dart';
 import 'calendar_screen.dart';
 import 'graduation_screen.dart';
@@ -113,8 +114,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           IconButton(
             tooltip: '系統通知',
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('目前沒有新的系統通知')),
+              AppNotification.show(
+                context,
+                title: '系統通知',
+                message: '目前沒有新的系統通知',
+                icon: Icons.notifications_none_rounded,
               );
             },
             icon: const Icon(Icons.notifications_outlined),

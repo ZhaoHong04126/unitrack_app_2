@@ -25,3 +25,10 @@
 * **核心特性**：
   * 當滑鼠游標移入（`MouseRegion`）時，具備平滑的上浮微動畫（`AnimatedContainer` 位移 `-3px`）、外框高亮染色與陰影加深效果。
   * 支援自訂強調色（`accentColor`）、圓角（`borderRadius`）、內外距（`padding` / `margin`）與點擊回呼（`onTap`）。
+
+### 3. `app_notification.dart`
+* **`AppNotification`**：跨平台適應性通知管理工具。
+* **核心特性**：
+  * **電腦版（Web / Windows / 寬螢幕）**：不再於視窗底部顯示全寬橫條，而是自動切換至視窗**右上角**以精緻懸浮卡片（Top-Right Floating Banner）呈現，具備平滑淡入滑動動態、自動關閉倒數、手動關閉按鈕與操作按鈕（如復原）。
+  * **行動端（Android / iOS 窄螢幕）**：維持適配行動裝置的底部浮動 `SnackBar`，兼顧單手操作人體工學。
+
