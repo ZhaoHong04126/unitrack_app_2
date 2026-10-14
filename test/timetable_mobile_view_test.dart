@@ -50,11 +50,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 驗證頂部星期 Tab（包含週一至週日）
+    // 驗證頂部星期 Tab（包含週一至週日）及對應當週日期（月/日）
     expect(find.text('週一'), findsOneWidget);
     expect(find.text('週二'), findsOneWidget);
     expect(find.text('週三'), findsOneWidget);
     expect(find.text('週日'), findsOneWidget);
+
+    final now = DateTime.now();
+    final monday = DateTime(now.year, now.month, now.day).subtract(
+      Duration(days: now.weekday - 1),
+    );
+    final mondayDateStr = '${monday.month}/${monday.day}';
+    expect(find.text(mondayDateStr), findsOneWidget);
 
     // 點擊「週一」Tab
     await tester.tap(find.text('週一'));
@@ -84,7 +91,7 @@ void main() {
     expect(find.text('新增 星期三 課程'), findsOneWidget);
   });
 
-  testWidgets('手機模式下可切換展開/折疊修課統計卡片', (WidgetTester tester) async {
+  testWidgets('手機與電腦模式下均不再顯示佔位修課統計卡片', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(() {
@@ -102,26 +109,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 初始狀態為折疊：顯示「總計 2 門 · 6 學分」與「統計詳情」
-    expect(find.text('總計 2 門 · 6 學分'), findsOneWidget);
-    expect(find.text('統計詳情'), findsOneWidget);
+    // 驗證手機版不再顯示修課統計或統計詳情卡片
     expect(find.text('學期修課統計'), findsNothing);
-
-    // 點擊展開統計
-    await tester.tap(find.text('統計詳情'));
-    await tester.pumpAndSettle();
-
-    // 展開後顯示「學期修課統計」與「收合」按鈕
-    expect(find.text('學期修課統計'), findsOneWidget);
-    expect(find.text('收合'), findsOneWidget);
-    expect(find.text('必/選/通：'), findsOneWidget);
-
-    // 點擊收合
-    await tester.tap(find.text('收合'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('統計詳情'), findsOneWidget);
-    expect(find.text('學期修課統計'), findsNothing);
+    expect(find.text('統計詳情'), findsNothing);
   });
 
   testWidgets('手機模式下可於 AppBar 切換單日清單與整週網格檢視', (WidgetTester tester) async {
