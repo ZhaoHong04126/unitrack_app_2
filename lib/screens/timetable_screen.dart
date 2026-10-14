@@ -7,6 +7,12 @@ import '../services/course_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/app_notification.dart';
 
+/// 課表檢視模式（手機版支援：單日時間軸清單 vs 整週網格課表）
+enum TimetableViewMode {
+  daily, // 單日時間軸清單
+  weekly, // 整週網格課表
+}
+
 class TimetableScreen extends StatefulWidget {
   /// 外部可傳入初始課程列表（預設為空列表，呈現優雅的空課表狀態）
   final List<Course> initialCourses;
@@ -14,10 +20,14 @@ class TimetableScreen extends StatefulWidget {
   /// 當課表內容變更時可通知外部（供日後跨頁面同步使用）
   final ValueChanged<List<Course>>? onCoursesChanged;
 
+  /// 自訂課程資料流（供測試或外部注入使用，預設使用 CourseService().getCoursesStream()）
+  final Stream<List<Course>>? coursesStream;
+
   const TimetableScreen({
     super.key,
     this.initialCourses = const [],
     this.onCoursesChanged,
+    this.coursesStream,
   });
 
   @override
@@ -35,6 +45,15 @@ class _TimetableScreenState extends State<TimetableScreen> {
   /// 是否手動切換顯示週末（週六、週日）
   bool _showWeekend = false;
 
+  /// 手機端課表檢視模式（預設為單日時間軸清單）
+  TimetableViewMode _mobileViewMode = TimetableViewMode.daily;
+
+  /// 單日模式下目前選中的星期（1: 週一 ... 7: 週日，預設當天）
+  late int _selectedWeekday;
+
+  /// 手機端頂部統計卡片是否展開
+  bool _isSummaryExpanded = false;
+
   /// 每節課列的高度（足夠在單節高度內完整呈現課程名稱、教室代碼與授課教師）
   static const double _sectionRowHeight = 88.0;
 
@@ -47,9 +66,10 @@ class _TimetableScreenState extends State<TimetableScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedWeekday = DateTime.now().weekday;
     _courses = List<Course>.from(widget.initialCourses);
-    // 若初始課程包含週六或週日，自動開啟週末顯示
-    if (_courses.any((c) => c.weekday >= 6)) {
+    // 若初始課程或今天包含週六或週日，自動開啟週末顯示
+    if (_courses.any((c) => c.weekday >= 6) || _selectedWeekday >= 6) {
       _showWeekend = true;
     }
   }
@@ -889,7 +909,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
     final colorScheme = theme.colorScheme;
 
     return StreamBuilder<List<Course>>(
-      stream: CourseService().getCoursesStream(),
+      stream: widget.coursesStream ?? CourseService().getCoursesStream(),
       initialData:
           widget.initialCourses.isNotEmpty ? widget.initialCourses : null,
       builder: (context, snapshot) {
@@ -912,6 +932,8 @@ class _TimetableScreenState extends State<TimetableScreen> {
             _notifyChanged();
           });
         }
+
+        final isMobile = ResponsiveLayout.isMobile(context);
 
         Widget bodyContent;
         if (isLoading) {
@@ -965,10 +987,41 @@ class _TimetableScreenState extends State<TimetableScreen> {
               ),
             ),
           );
+        } else if (isMobile && _mobileViewMode == TimetableViewMode.daily) {
+          // 手機版單日時間軸清單模式
+          bodyContent = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 12),
+              // 頂部統計區塊（空課表橫幅或手機版可折疊簡化統計）
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: currentCourses.isEmpty
+                    ? _buildEmptyTimetableBanner(context)
+                    : _buildCourseSummaryBar(context, isMobile: true),
+              ),
+              const SizedBox(height: 10),
+
+              // 星期切換 Tab 列（週一至週日，可點選切換，預設選中當天）
+              _buildMobileWeekdayTabBar(
+                context: context,
+                currentCourses: currentCourses,
+              ),
+              const SizedBox(height: 8),
+
+              // 下方單日課程清單（或該日無課的空狀態提示）
+              Expanded(
+                child: _buildDailyCourseListView(
+                  context: context,
+                  currentCourses: currentCourses,
+                ),
+              ),
+            ],
+          );
         } else {
+          // 週課表模式（桌面/平板維持完整整週網格；手機若手動切換為週課表則可橫向滑動）
           bodyContent = LayoutBuilder(
             builder: (context, constraints) {
-              // 桌面或寬視窗 (>= 680px) 直接平鋪完整週課表；窄視窗 (< 680px) 啟用橫向滑動檢視
               final isDesktopTiled = constraints.maxWidth >= 680;
               final horizontalPadding = isDesktopTiled ? 24.0 : 12.0;
 
@@ -992,11 +1045,14 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // 頂部統計與操作提示列（空列表時呈現優雅的空課表狀態）
+                          // 頂部統計與操作提示列
                           if (currentCourses.isEmpty)
                             _buildEmptyTimetableBanner(context)
                           else
-                            _buildCourseSummaryBar(context),
+                            _buildCourseSummaryBar(
+                              context,
+                              isMobile: !isDesktopTiled,
+                            ),
                           const SizedBox(height: 14),
 
                           // 手機端橫向滑動提示列
@@ -1013,7 +1069,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      '手機檢視模式：可左右滑動瀏覽完整週課表',
+                                      '手機整週檢視：可左右滑動瀏覽課表，點擊右上角可切換單日模式',
                                       style:
                                           theme.textTheme.labelSmall?.copyWith(
                                         color: colorScheme.onSurfaceVariant,
@@ -1040,8 +1096,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
             },
           );
         }
-
-        final isMobile = ResponsiveLayout.isMobile(context);
 
         return Scaffold(
           backgroundColor: colorScheme.surfaceContainerLowest,
@@ -1111,7 +1165,9 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       : (currentCourses.isEmpty
                           ? (isMobile ? '尚未排定課程' : '尚未排定課程 ・ 點擊右上角按鈕即可新增')
                           : (isMobile
-                              ? '共 ${currentCourses.length} 門 ・ $_totalCredits 學分'
+                              ? (_mobileViewMode == TimetableViewMode.daily
+                                  ? '${Course.weekdayName(_selectedWeekday)} ・ 共 ${_courses.where((c) => c.weekday == _selectedWeekday).length} 門課程'
+                                  : '共 ${currentCourses.length} 門 ・ $_totalCredits 學分')
                               : '共 ${currentCourses.length} 門課程 ・ 總計 $_totalCredits 學分')),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
@@ -1123,30 +1179,77 @@ class _TimetableScreenState extends State<TimetableScreen> {
             ),
             actions: [
               if (isMobile) ...[
-                // 手機端精簡動作按鈕：避免頂部橫條寬度溢位 (Overflow)
+                // 手機端檢視模式切換（單日清單 vs 整週課表）
                 IconButton(
-                  tooltip:
-                      effectiveShowWeekend ? '切換為週一至週五' : '切換為含週末 (7天)',
+                  tooltip: _mobileViewMode == TimetableViewMode.daily
+                      ? '切換為整週網格模式'
+                      : '切換為單日清單模式',
                   icon: Icon(
-                    effectiveShowWeekend
-                        ? Icons.date_range_rounded
-                        : Icons.view_week_outlined,
-                    color: effectiveShowWeekend
-                        ? colorScheme.primary
-                        : colorScheme.onSurfaceVariant,
+                    _mobileViewMode == TimetableViewMode.daily
+                        ? Icons.calendar_view_week_rounded
+                        : Icons.view_agenda_rounded,
+                    color: colorScheme.primary,
                   ),
                   onPressed: () {
                     setState(() {
-                      _showWeekend = !_showWeekend;
+                      _mobileViewMode =
+                          _mobileViewMode == TimetableViewMode.daily
+                              ? TimetableViewMode.weekly
+                              : TimetableViewMode.daily;
                     });
                   },
                 ),
-                if (currentCourses.isNotEmpty)
-                  IconButton(
-                    tooltip: '清空課表',
-                    onPressed: _confirmClearAllCourses,
-                    icon: const Icon(Icons.delete_sweep_outlined),
-                  ),
+                // 更多動作選單（切換週末與清空課表）
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert_rounded),
+                  tooltip: '更多選項',
+                  onSelected: (value) {
+                    if (value == 'toggle_weekend') {
+                      setState(() {
+                        _showWeekend = !_showWeekend;
+                      });
+                    } else if (value == 'clear_all') {
+                      _confirmClearAllCourses();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'toggle_weekend',
+                      child: Row(
+                        children: [
+                          Icon(
+                            effectiveShowWeekend
+                                ? Icons.check_box_rounded
+                                : Icons.check_box_outline_blank_rounded,
+                            size: 20,
+                            color: effectiveShowWeekend
+                                ? colorScheme.primary
+                                : null,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            effectiveShowWeekend
+                                ? '顯示週末 (已開啟)'
+                                : '顯示週末 (週六/週日)',
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (currentCourses.isNotEmpty)
+                      const PopupMenuItem(
+                        value: 'clear_all',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_sweep_outlined,
+                                size: 20, color: Colors.red),
+                            SizedBox(width: 8),
+                            Text('清空所有課程',
+                                style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: FilledButton(
@@ -1154,7 +1257,12 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       minimumSize: const Size(36, 36),
                     ),
-                    onPressed: () => _showCourseFormDialog(),
+                    onPressed: () => _showCourseFormDialog(
+                      initialWeekday:
+                          _mobileViewMode == TimetableViewMode.daily
+                              ? _selectedWeekday
+                              : 1,
+                    ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1275,8 +1383,8 @@ class _TimetableScreenState extends State<TimetableScreen> {
     );
   }
 
-  /// 已有課程時的頂部學分與課程類別統計列
-  Widget _buildCourseSummaryBar(BuildContext context) {
+  /// 已有課程時的頂部學分與課程類別統計列（支援手機版折疊精簡）
+  Widget _buildCourseSummaryBar(BuildContext context, {bool isMobile = false}) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -1290,6 +1398,154 @@ class _TimetableScreenState extends State<TimetableScreen> {
         .where((c) => c.type == CourseType.general)
         .fold<int>(0, (s, c) => s + c.credits);
 
+    if (isMobile) {
+      // 手機端：預設折疊為一行輕量標籤，大幅節省垂直顯示空間
+      if (!_isSummaryExpanded) {
+        return InkWell(
+          onTap: () {
+            setState(() {
+              _isSummaryExpanded = true;
+            });
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.pie_chart_outline_rounded,
+                  size: 16,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '總計 ${_courses.length} 門 · $_totalCredits 學分',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '統計詳情',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: colorScheme.primary,
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // 手機端展開模式
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.6),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.analytics_outlined,
+                      size: 16,
+                      color: colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '學期修課統計',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      _isSummaryExpanded = false;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '收合',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Icon(
+                          Icons.keyboard_arrow_up_rounded,
+                          size: 16,
+                          color: colorScheme.primary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildSummaryChip(
+                  context,
+                  label: '總課程',
+                  value: '${_courses.length} 門',
+                  color: colorScheme.primary,
+                ),
+                _buildSummaryChip(
+                  context,
+                  label: '總學分',
+                  value: '$_totalCredits 學分',
+                  color: Colors.indigo,
+                ),
+                _buildSummaryChip(
+                  context,
+                  label: '必/選/通',
+                  value: '$requiredCredits / $electiveCredits / $generalCredits',
+                  color: Colors.teal,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // 桌面與寬螢幕完整模式
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       decoration: BoxDecoration(
@@ -1371,6 +1627,409 @@ class _TimetableScreenState extends State<TimetableScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 手機端星期 Tab 切換列（週一至週日，可點選切換，預設選中當天）
+  Widget _buildMobileWeekdayTabBar({
+    required BuildContext context,
+    required List<Course> currentCourses,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final currentDay = DateTime.now().weekday;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        children: List.generate(7, (index) {
+          final weekday = index + 1;
+          final isSelected = weekday == _selectedWeekday;
+          final isToday = weekday == currentDay;
+          final dayCoursesCount =
+              currentCourses.where((c) => c.weekday == weekday).length;
+
+          return Padding(
+            padding: EdgeInsets.only(right: index == 6 ? 0 : 8),
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _selectedWeekday = weekday;
+                });
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? colorScheme.primary
+                      : (isToday
+                          ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+                          : colorScheme.surface),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected
+                        ? colorScheme.primary
+                        : (isToday
+                            ? colorScheme.primary.withValues(alpha: 0.5)
+                            : colorScheme.outlineVariant
+                                .withValues(alpha: 0.5)),
+                    width: isSelected ? 1.5 : 1.0,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: colorScheme.primary.withValues(alpha: 0.25),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          )
+                        ]
+                      : null,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          Course.weekdayName(weekday, short: true),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                                isSelected ? FontWeight.bold : FontWeight.w600,
+                            color: isSelected
+                                ? colorScheme.onPrimary
+                                : (isToday
+                                    ? colorScheme.primary
+                                    : colorScheme.onSurface),
+                          ),
+                        ),
+                        if (isToday) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            width: 5,
+                            height: 5,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isSelected
+                                  ? colorScheme.onPrimary
+                                  : colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      dayCoursesCount > 0 ? '$dayCoursesCount 門' : '無課',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: dayCoursesCount > 0
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: isSelected
+                            ? colorScheme.onPrimary.withValues(alpha: 0.9)
+                            : (dayCoursesCount > 0
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.7)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  /// 手機端單日課程清單視圖
+  Widget _buildDailyCourseListView({
+    required BuildContext context,
+    required List<Course> currentCourses,
+  }) {
+    final dayCourses = currentCourses
+        .where((c) => c.weekday == _selectedWeekday)
+        .toList()
+      ..sort((a, b) => a.startSection.compareTo(b.startSection));
+
+    if (dayCourses.isEmpty) {
+      return _buildDailyEmptyState(context, _selectedWeekday);
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
+      itemCount: dayCourses.length,
+      separatorBuilder: (context, index) => const SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final course = dayCourses[index];
+        return _buildDailyCourseCard(context, course);
+      },
+    );
+  }
+
+  /// 手機端單日無課空狀態提示
+  Widget _buildDailyEmptyState(BuildContext context, int weekday) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isToday = weekday == DateTime.now().weekday;
+    final dayName = Course.weekdayName(weekday);
+
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withValues(alpha: 0.35),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isToday
+                    ? Icons.beach_access_rounded
+                    : Icons.event_available_rounded,
+                size: 36,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '$dayName 無排定課程',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isToday
+                  ? '今天沒有安排任何課程，好好放鬆、自主學習或充電吧！'
+                  : '這一天沒有排課，享受自由充實的時間安排。',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.tonalIcon(
+              onPressed: () => _showCourseFormDialog(initialWeekday: weekday),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: Text('新增 $dayName 課程'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 手機端單日課程卡片
+  Widget _buildDailyCourseCard(BuildContext context, Course course) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final startSec = Course.sectionOf(course.startSection);
+    final endSec = Course.sectionOf(course.endSection);
+    final sectionText = course.startSection == course.endSection
+        ? '第 ${course.startSection} 節'
+        : '第 ${course.startSection}-${course.endSection} 節';
+    final timeText = '${startSec.startTime} - ${endSec.endTime}';
+
+    return Material(
+      color: colorScheme.surface,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.55),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _showCourseDetailDialog(course),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 左側代表色飾條
+              Container(
+                width: 5,
+                color: course.color,
+              ),
+              // 卡片主要內容
+              Expanded(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 頂部時段標籤與必選修 Badge
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2.5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: course.color.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              sectionText,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: course.color,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.schedule_rounded,
+                                  size: 13,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 3),
+                                Flexible(
+                                  child: Text(
+                                    timeText,
+                                    style:
+                                        theme.textTheme.labelSmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              course.type.label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primaryContainer
+                                  .withValues(alpha: 0.4),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${course.credits}學分',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // 課程名稱
+                      Text(
+                        course.name,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      // 教室與授課教師
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on_outlined,
+                            size: 15,
+                            color: course.color,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              course.classroom.isNotEmpty
+                                  ? course.classroom
+                                  : '未定教室',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(
+                            Icons.person_outline_rounded,
+                            size: 15,
+                            color: course.color,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              course.professor.isNotEmpty
+                                  ? course.professor
+                                  : '未定教師',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            size: 18,
+                            color: colorScheme.outlineVariant,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
