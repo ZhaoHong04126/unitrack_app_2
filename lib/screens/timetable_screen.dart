@@ -157,6 +157,13 @@ class _TimetableScreenState extends State<TimetableScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 24,
+              ),
               title: Row(
                 children: [
                   Container(
@@ -294,45 +301,45 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       ),
                       const SizedBox(height: 12),
 
-                      // 星期與節次選擇
+                      // 上課星期選擇
+                      DropdownButtonFormField<int>(
+                        initialValue: selectedWeekday,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: '上課星期',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                        ),
+                        items: List.generate(7, (index) {
+                          final day = index + 1;
+                          return DropdownMenuItem<int>(
+                            value: day,
+                            child: Text(Course.weekdayName(day)),
+                          );
+                        }),
+                        onChanged: (val) {
+                          if (val == null) return;
+                          setDialogState(() {
+                            selectedWeekday = val;
+                            errorMessage = null;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+
+                      // 節次選擇（開始節次 至 結束節次）
                       Row(
                         children: [
                           Expanded(
-                            flex: 4,
-                            child: DropdownButtonFormField<int>(
-                              initialValue: selectedWeekday,
-                              decoration: InputDecoration(
-                                labelText: '星期',
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 12,
-                                ),
-                              ),
-                              items: List.generate(7, (index) {
-                                final day = index + 1;
-                                return DropdownMenuItem<int>(
-                                  value: day,
-                                  child: Text(Course.weekdayName(day)),
-                                );
-                              }),
-                              onChanged: (val) {
-                                if (val == null) return;
-                                setDialogState(() {
-                                  selectedWeekday = val;
-                                  errorMessage = null;
-                                });
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 3,
                             child: DropdownButtonFormField<int>(
                               initialValue: selectedStartSection,
+                              isExpanded: true,
                               decoration: InputDecoration(
                                 labelText: '開始節次',
                                 border: OutlineInputBorder(
@@ -362,11 +369,11 @@ class _TimetableScreenState extends State<TimetableScreen> {
                               },
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 10),
                           Expanded(
-                            flex: 3,
                             child: DropdownButtonFormField<int>(
                               initialValue: selectedEndSection,
+                              isExpanded: true,
                               decoration: InputDecoration(
                                 labelText: '結束節次',
                                 border: OutlineInputBorder(
@@ -409,6 +416,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                           Expanded(
                             child: DropdownButtonFormField<CourseType>(
                               initialValue: selectedType,
+                              isExpanded: true,
                               decoration: InputDecoration(
                                 labelText: '課程類別',
                                 border: OutlineInputBorder(
@@ -437,6 +445,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                           Expanded(
                             child: DropdownButtonFormField<int>(
                               initialValue: selectedCredits,
+                              isExpanded: true,
                               decoration: InputDecoration(
                                 labelText: '學分數',
                                 border: OutlineInputBorder(
@@ -1192,77 +1201,57 @@ class _TimetableScreenState extends State<TimetableScreen> {
                   },
                 ),
                 // 更多動作選單（切換週末與清空課表）
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded),
-                  tooltip: '更多選項',
-                  onSelected: (value) {
-                    if (value == 'toggle_weekend') {
-                      setState(() {
-                        _showWeekend = !_showWeekend;
-                      });
-                    } else if (value == 'clear_all') {
-                      _confirmClearAllCourses();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'toggle_weekend',
-                      child: Row(
-                        children: [
-                          Icon(
-                            effectiveShowWeekend
-                                ? Icons.check_box_rounded
-                                : Icons.check_box_outline_blank_rounded,
-                            size: 20,
-                            color: effectiveShowWeekend
-                                ? colorScheme.primary
-                                : null,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            effectiveShowWeekend
-                                ? '顯示週末 (已開啟)'
-                                : '顯示週末 (週六/週日)',
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (currentCourses.isNotEmpty)
-                      const PopupMenuItem(
-                        value: 'clear_all',
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert_rounded),
+                    tooltip: '更多選項',
+                    onSelected: (value) {
+                      if (value == 'toggle_weekend') {
+                        setState(() {
+                          _showWeekend = !_showWeekend;
+                        });
+                      } else if (value == 'clear_all') {
+                        _confirmClearAllCourses();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'toggle_weekend',
                         child: Row(
                           children: [
-                            Icon(Icons.delete_sweep_outlined,
-                                size: 20, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('清空所有課程',
-                                style: TextStyle(color: Colors.red)),
+                            Icon(
+                              effectiveShowWeekend
+                                  ? Icons.check_box_rounded
+                                  : Icons.check_box_outline_blank_rounded,
+                              size: 20,
+                              color: effectiveShowWeekend
+                                  ? colorScheme.primary
+                                  : null,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              effectiveShowWeekend
+                                  ? '顯示週末 (已開啟)'
+                                  : '顯示週末 (週六/週日)',
+                            ),
                           ],
                         ),
                       ),
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      minimumSize: const Size(36, 36),
-                    ),
-                    onPressed: () => _showCourseFormDialog(
-                      initialWeekday:
-                          _mobileViewMode == TimetableViewMode.daily
-                              ? _selectedWeekday
-                              : 1,
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add_rounded, size: 18),
-                        SizedBox(width: 4),
-                        Text('新增'),
-                      ],
-                    ),
+                      if (currentCourses.isNotEmpty)
+                        const PopupMenuItem(
+                          value: 'clear_all',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete_sweep_outlined,
+                                  size: 20, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('清空所有課程',
+                                  style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ] else ...[
@@ -1309,6 +1298,17 @@ class _TimetableScreenState extends State<TimetableScreen> {
             ],
           ),
           body: SafeArea(child: bodyContent),
+          floatingActionButton: isMobile
+              ? FloatingActionButton.extended(
+                  onPressed: () => _showCourseFormDialog(
+                    initialWeekday: _mobileViewMode == TimetableViewMode.daily
+                        ? _selectedWeekday
+                        : 1,
+                  ),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('新增課程'),
+                )
+              : null,
         );
       },
     );

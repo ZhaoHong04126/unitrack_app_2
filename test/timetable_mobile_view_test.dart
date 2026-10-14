@@ -114,6 +114,42 @@ void main() {
     expect(find.text('統計詳情'), findsNothing);
   });
 
+  testWidgets('手機模式下右下角顯示 FloatingActionButton 新增按鈕且點擊開啟對話框', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TimetableScreen(
+          initialCourses: sampleCourses,
+          coursesStream: Stream.value(sampleCourses),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 驗證右下角顯示 FloatingActionButton
+    final fab = find.byType(FloatingActionButton);
+    expect(fab, findsOneWidget);
+    expect(find.descendant(of: fab, matching: find.text('新增課程')), findsOneWidget);
+    expect(find.descendant(of: fab, matching: find.byIcon(Icons.add_rounded)), findsOneWidget);
+
+    // 點擊 FAB 開啟新增課程對話框
+    await tester.tap(fab);
+    await tester.pumpAndSettle();
+
+    // 驗證新增對話框開啟
+    expect(find.text('課程名稱'), findsOneWidget);
+
+    // 點擊取消關閉對話框
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('手機模式下可於 AppBar 切換單日清單與整週網格檢視', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1.0;
