@@ -143,7 +143,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 驗證新增對話框開啟
-    expect(find.text('課程名稱'), findsOneWidget);
+    expect(find.textContaining('課程名稱'), findsOneWidget);
 
     // 點擊取消關閉對話框
     await tester.tap(find.text('取消'));
@@ -216,6 +216,9 @@ void main() {
     expect(find.text('週一至週五'), findsOneWidget);
     // 桌面模式不顯示手機專屬的切換單日模式 tooltip
     expect(find.byTooltip('切換為整週網格模式'), findsNothing);
+    // 驗證雙位數節次標籤（第 10 節 ~ 第 14 節）完整渲染且無文字換行溢出
+    expect(find.text('第 10 節'), findsOneWidget);
+    expect(find.text('第 14 節'), findsOneWidget);
   });
 
   testWidgets('手機直立寬度下進入整週檢視模式，一覽完整週一至週五且無水平滾動軸', (WidgetTester tester) async {

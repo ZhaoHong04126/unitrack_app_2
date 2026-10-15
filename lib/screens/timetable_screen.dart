@@ -57,7 +57,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
   static const double _desktopSectionRowHeight = 76.0;
 
   /// 桌面/平板寬螢幕左側節次/時間軸欄寬
-  static const double _timeColumnWidthDesktop = 70.0;
+  static const double _timeColumnWidthDesktop = 78.0;
 
   /// 手機/窄螢幕左側節次/時間軸欄寬（瘦身為 38.0，大幅節省橫向空間）
   static const double _timeColumnWidthMobile = 38.0;
@@ -603,10 +603,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
         );
       },
     );
-
-    nameController.dispose();
-    classroomController.dispose();
-    professorController.dispose();
 
     if (result != null && mounted) {
       try {
@@ -1996,91 +1992,102 @@ class _TimetableScreenState extends State<TimetableScreen> {
           ),
           child: Center(
             child: isCompact
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 節次數字精簡化：僅顯示節次數字（如 0、1、2...）
-                      Container(
-                        width: 18,
-                        height: 18,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: colorScheme.secondaryContainer
-                              .withValues(alpha: 0.7),
-                          shape: BoxShape.circle,
+                ? FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 節次數字精簡化：僅顯示節次數字（如 0、1、2...）
+                        Container(
+                          width: 18,
+                          height: 18,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: colorScheme.secondaryContainer
+                                .withValues(alpha: 0.7),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            sec.section.toString(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSecondaryContainer,
+                            ),
+                          ),
                         ),
-                        child: Text(
-                          sec.section.toString(),
+                        const SizedBox(height: 2),
+                        // 時間縮小並改以極小字體垂直排版
+                        Text(
+                          sec.startTime,
                           style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSecondaryContainer,
+                            fontSize: 8,
+                            height: 1.0,
+                            fontWeight: FontWeight.w500,
+                            color: colorScheme.onSurfaceVariant,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      // 時間縮小並改以極小字體垂直排版
-                      Text(
-                        sec.startTime,
-                        style: TextStyle(
-                          fontSize: 8,
-                          height: 1.0,
-                          fontWeight: FontWeight.w500,
-                          color: colorScheme.onSurfaceVariant,
+                        Text(
+                          sec.endTime,
+                          style: TextStyle(
+                            fontSize: 7.5,
+                            height: 1.0,
+                            color: colorScheme.outline,
+                          ),
                         ),
-                      ),
-                      Text(
-                        sec.endTime,
-                        style: TextStyle(
-                          fontSize: 7.5,
-                          height: 1.0,
-                          color: colorScheme.outline,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   )
-                : Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: colorScheme.secondaryContainer
-                              .withValues(alpha: 0.6),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          sec.label,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.onSecondaryContainer,
+                : FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.secondaryContainer
+                                .withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              sec.label,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onSecondaryContainer,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        sec.startTime,
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurfaceVariant,
-                          height: 1.1,
+                        const SizedBox(height: 3),
+                        Text(
+                          sec.startTime,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurfaceVariant,
+                            height: 1.1,
+                          ),
                         ),
-                      ),
-                      Text(
-                        sec.endTime,
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          color: colorScheme.outline,
-                          height: 1.1,
+                        Text(
+                          sec.endTime,
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            color: colorScheme.outline,
+                            height: 1.1,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
           ),
         );
