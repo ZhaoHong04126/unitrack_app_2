@@ -51,14 +51,20 @@ class _TimetableScreenState extends State<TimetableScreen> {
   /// 單日模式下目前選中的星期（1: 週一 ... 7: 週日，預設當天）
   late int _selectedWeekday;
 
-  /// 每節課列的高度（足夠在單節高度內完整呈現課程名稱、教室代碼與授課教師）
-  static const double _sectionRowHeight = 88.0;
+  /// 手機/窄螢幕下節次列高度（56.0，適度調小讓手機直向一覽看見更多節次）
+  static const double _mobileSectionRowHeight = 56.0;
 
-  /// 左側節次/時間軸欄寬
-  static const double _timeColumnWidth = 82.0;
+  /// 桌面/平板寬螢幕下節次列高度（76.0，寬裕舒適，防止單節課卡片與時間軸溢出）
+  static const double _desktopSectionRowHeight = 76.0;
 
-  /// 手機端單一星期欄位的最小寬度（觸發橫向滑動檢視）
-  static const double _mobileMinDayColumnWidth = 116.0;
+  /// 桌面/平板寬螢幕左側節次/時間軸欄寬
+  static const double _timeColumnWidthDesktop = 70.0;
+
+  /// 手機/窄螢幕左側節次/時間軸欄寬（瘦身為 38.0，大幅節省橫向空間）
+  static const double _timeColumnWidthMobile = 38.0;
+
+  /// 是否強制顯示全天完整節次（含第 0 節與夜間節次），預設為 false（無課時預設隱藏第 0 節與夜間節次）
+  bool _showFullSections = false;
 
   @override
   void initState() {
@@ -80,6 +86,23 @@ class _TimetableScreenState extends State<TimetableScreen> {
 
   int get _visibleDayCount =>
       (_showWeekend || _courses.any((c) => c.weekday >= 6)) ? 7 : 5;
+
+  /// 當前課表應顯示的節次清單（若未開啟全天時段且無第 0 節/夜間課，自動縮減為日間實用時段）
+  List<TimetableSection> get _visibleSections {
+    if (_showFullSections) {
+      return Course.defaultSections;
+    }
+    final hasSection0 = _courses.any((c) => c.startSection == 0);
+    final start = hasSection0 ? 0 : 1;
+    final latestSection = _courses.isEmpty
+        ? 8
+        : _courses.map((c) => c.endSection).reduce(math.max);
+    final end = math.max(8, latestSection).clamp(8, Course.defaultSections.last.section);
+
+    return Course.defaultSections
+        .where((s) => s.section >= start && s.section <= end)
+        .toList();
+  }
 
   int get _totalCredits =>
       _courses.fold<int>(0, (sum, course) => sum + course.credits);
@@ -1056,21 +1079,21 @@ class _TimetableScreenState extends State<TimetableScreen> {
                             const SizedBox(height: 14),
                           ],
 
-                          // 手機端橫向滑動提示列
+                          // 手機端整週一覽提示列
                           if (!isDesktopTiled)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Row(
                                 children: [
                                   Icon(
-                                    Icons.swipe_rounded,
+                                    Icons.calendar_view_week_rounded,
                                     size: 15,
                                     color: colorScheme.primary,
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      '手機整週檢視：可左右滑動瀏覽課表，點擊右上角可切換單日模式',
+                                      '手機整週檢視：一覽全週課表，點擊右上角可切換單日模式',
                                       style:
                                           theme.textTheme.labelSmall?.copyWith(
                                         color: colorScheme.onSurfaceVariant,
@@ -1211,6 +1234,10 @@ class _TimetableScreenState extends State<TimetableScreen> {
                         setState(() {
                           _showWeekend = !_showWeekend;
                         });
+                      } else if (value == 'toggle_full_sections') {
+                        setState(() {
+                          _showFullSections = !_showFullSections;
+                        });
                       } else if (value == 'clear_all') {
                         _confirmClearAllCourses();
                       }
@@ -1234,6 +1261,28 @@ class _TimetableScreenState extends State<TimetableScreen> {
                               effectiveShowWeekend
                                   ? '顯示週末 (已開啟)'
                                   : '顯示週末 (週六/週日)',
+                            ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'toggle_full_sections',
+                        child: Row(
+                          children: [
+                            Icon(
+                              _showFullSections
+                                  ? Icons.check_box_rounded
+                                  : Icons.check_box_outline_blank_rounded,
+                              size: 20,
+                              color: _showFullSections
+                                  ? colorScheme.primary
+                                  : null,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _showFullSections
+                                  ? '全天時段 (已開啟完整時段)'
+                                  : '精簡時段 (隱藏無課早鳥/夜間)',
                             ),
                           ],
                         ),
@@ -1263,7 +1312,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                     showCheckmark: false,
                     avatar: Icon(
                       effectiveShowWeekend
-                          ? Icons.date_range_rounded
+                                  ? Icons.date_range_rounded
                           : Icons.view_week_outlined,
                       size: 16,
                       color: effectiveShowWeekend
@@ -1275,6 +1324,29 @@ class _TimetableScreenState extends State<TimetableScreen> {
                     onSelected: (val) {
                       setState(() {
                         _showWeekend = val;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: FilterChip(
+                    selected: _showFullSections,
+                    showCheckmark: false,
+                    avatar: Icon(
+                      _showFullSections
+                          ? Icons.schedule_rounded
+                          : Icons.timelapse_rounded,
+                      size: 16,
+                      color: _showFullSections
+                          ? colorScheme.onSecondaryContainer
+                          : colorScheme.onSurfaceVariant,
+                    ),
+                    label: Text(_showFullSections ? '全天時段' : '精簡時段'),
+                    onSelected: (val) {
+                      setState(() {
+                        _showFullSections = val;
                       });
                     },
                   ),
@@ -1789,30 +1861,24 @@ class _TimetableScreenState extends State<TimetableScreen> {
     );
   }
 
-  /// 響應式課表外框：桌面/Web 平鋪完整週課表，手機端支援橫向滑動
+  /// 響應式課表外框：寬度彈性適配，手機直立一覽完整顯示週一至週五（或整週），無需左右滑動
   Widget _buildResponsiveTimetableContainer({
     required BuildContext context,
     required double availableWidth,
     required bool isDesktopTiled,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
-    final clampedAvailableWidth = math.max(
-      availableWidth,
-      320.0,
-    ).clamp(320.0, Breakpoints.desktopMaxContentWidth);
-
-    final minRequiredWidth =
-        _timeColumnWidth + (_visibleDayCount * _mobileMinDayColumnWidth) + 2.0;
-
-    final tableWidth = isDesktopTiled
-        ? clampedAvailableWidth
-        : math.max(clampedAvailableWidth, minRequiredWidth);
+    final isCompact = !isDesktopTiled;
+    final timeColWidth =
+        isCompact ? _timeColumnWidthMobile : _timeColumnWidthDesktop;
+    final sectionRowHeight =
+        isCompact ? _mobileSectionRowHeight : _desktopSectionRowHeight;
 
     final timetableGrid = Container(
-      width: tableWidth,
+      width: double.infinity,
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: colorScheme.outlineVariant.withValues(alpha: 0.7),
         ),
@@ -1829,7 +1895,11 @@ class _TimetableScreenState extends State<TimetableScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 表頭列：星期一 ~ 星期五（或星期日）
-          _buildWeekdayHeaderRow(context),
+          _buildWeekdayHeaderRow(
+            context,
+            isCompact: isCompact,
+            timeColWidth: timeColWidth,
+          ),
           Divider(
             height: 1,
             thickness: 1,
@@ -1839,16 +1909,25 @@ class _TimetableScreenState extends State<TimetableScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 縱軸：節次與時間區段（第 0 節 07:10 ~ 第 15 節 23:00）
+              // 縱軸：節次與時間區段（支援動態過濾無課早鳥與夜間節次）
               SizedBox(
-                width: _timeColumnWidth,
-                child: _buildTimeAxisColumn(context),
+                width: timeColWidth,
+                child: _buildTimeAxisColumn(
+                  context,
+                  isCompact: isCompact,
+                  sectionRowHeight: sectionRowHeight,
+                ),
               ),
-              // 橫軸各星期欄位（使用 Expanded 自動扣除邊框後等比例平鋪）
+              // 橫軸各星期欄位（使用 Expanded 自動等比例平分剩餘全部可用寬度）
               ...List.generate(_visibleDayCount, (index) {
                 final weekday = index + 1;
                 return Expanded(
-                  child: _buildDayColumn(context, weekday),
+                  child: _buildDayColumn(
+                    context,
+                    weekday,
+                    isCompact: isCompact,
+                    sectionRowHeight: sectionRowHeight,
+                  ),
                 );
               }),
             ],
@@ -1857,40 +1936,39 @@ class _TimetableScreenState extends State<TimetableScreen> {
       ),
     );
 
-    if (isDesktopTiled) {
-      return timetableGrid;
-    }
-
-    return Scrollbar(
-      controller: _horizontalScrollController,
-      thumbVisibility: true,
-      child: SingleChildScrollView(
-        controller: _horizontalScrollController,
-        scrollDirection: Axis.horizontal,
-        child: timetableGrid,
-      ),
-    );
+    return timetableGrid;
   }
 
-  /// 表頭：左上角「節次 / 星期」與週一至週五（或週日）欄位標題
-  Widget _buildWeekdayHeaderRow(BuildContext context) {
+  /// 表頭：左上角「節次 / 時間」與週一至週五（或週日）欄位標題
+  Widget _buildWeekdayHeaderRow(
+    BuildContext context, {
+    required bool isCompact,
+    required double timeColWidth,
+  }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final currentWeekday = DateTime.now().weekday;
 
     return Container(
-      height: 50,
+      height: isCompact ? 42.0 : 48.0,
       color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
       child: Row(
         children: [
           SizedBox(
-            width: _timeColumnWidth,
+            width: timeColWidth,
             child: Center(
-              child: Text(
-                '節次 / 時間',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurfaceVariant,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Text(
+                    isCompact ? '節次' : '節次 / 時間',
+                    style: TextStyle(
+                      fontSize: isCompact ? 11 : 12,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1902,9 +1980,17 @@ class _TimetableScreenState extends State<TimetableScreen> {
                 .where((c) => c.weekday == weekday)
                 .length;
 
+            // 窄欄模式下星期標題精簡化：
+            // 7 天全週顯示為「一、二...」，5 天平日顯示為「週一、週二...」
+            final weekdayText = isCompact
+                ? (_visibleDayCount == 7
+                    ? Course.weekdayName(weekday, short: true).replaceAll('週', '')
+                    : Course.weekdayName(weekday, short: true))
+                : Course.weekdayName(weekday);
+
             return Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: EdgeInsets.symmetric(horizontal: isCompact ? 2 : 4),
                 decoration: BoxDecoration(
                   color: isToday
                       ? colorScheme.primaryContainer.withValues(alpha: 0.45)
@@ -1924,50 +2010,83 @@ class _TimetableScreenState extends State<TimetableScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
-                            Course.weekdayName(weekday),
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
+                            weekdayText,
+                            style: TextStyle(
+                              fontSize: isCompact ? 12 : 13,
+                              fontWeight:
+                                  isToday ? FontWeight.bold : FontWeight.w600,
                               color: isToday
                                   ? colorScheme.primary
                                   : colorScheme.onSurface,
                             ),
                           ),
                           if (isToday) ...[
-                            const SizedBox(width: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 1,
-                              ),
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                '今日',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
+                            SizedBox(width: isCompact ? 2 : 4),
+                            if (isCompact)
+                              // 緊湊模式下使用小圓點標示今日，避免膠囊文字撐爆欄寬
+                              Container(
+                                width: 5,
+                                height: 5,
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                              )
+                            else
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primary,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  '今日',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
                         ],
                       ),
                     ),
-                    if (dayCourseCount > 0)
-                      Text(
-                        '$dayCourseCount 門課',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: isToday
-                              ? colorScheme.primary
-                              : colorScheme.onSurfaceVariant,
+                    if (dayCourseCount > 0) ...[
+                      const SizedBox(height: 1),
+                      if (isCompact)
+                        // 緊湊模式下將課程數標籤改為小圓點，避免吃掉縱深與寬度
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 4,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: isToday
+                                    ? colorScheme.primary
+                                    : colorScheme.outline,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        Text(
+                          '$dayCourseCount 門課',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isToday
+                                ? colorScheme.primary
+                                : colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1978,72 +2097,141 @@ class _TimetableScreenState extends State<TimetableScreen> {
     );
   }
 
-  /// 左側縱軸：第 0 節至第 15 節（全時段 10 分到整點：07:10 - 23:00）
-  Widget _buildTimeAxisColumn(BuildContext context) {
+  /// 左側縱軸：節次與時間欄（窄螢幕大幅瘦身為純節次數字 + 垂直微型時間排版）
+  Widget _buildTimeAxisColumn(
+    BuildContext context, {
+    required bool isCompact,
+    required double sectionRowHeight,
+  }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final lastSectionNumber = Course.defaultSections.last.section;
+    final visibleSections = _visibleSections;
+    final lastSectionNumber = visibleSections.last.section;
 
     return Column(
-      children: Course.defaultSections.map((sec) {
+      children: visibleSections.map((sec) {
+        final isLast = sec.section == lastSectionNumber;
         return Container(
-          height: _sectionRowHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+          height: sectionRowHeight,
+          padding: EdgeInsets.symmetric(
+            horizontal: isCompact ? 1 : 6,
+            vertical: 2,
+          ),
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerLowest.withValues(alpha: 0.6),
             border: Border(
-              bottom: sec.section < lastSectionNumber
+              bottom: !isLast
                   ? BorderSide(
                       color: colorScheme.outlineVariant.withValues(alpha: 0.45),
                     )
                   : BorderSide.none,
             ),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: colorScheme.secondaryContainer.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  sec.label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSecondaryContainer,
+          child: Center(
+            child: isCompact
+                ? Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 節次數字精簡化：僅顯示節次數字（如 0、1、2...）
+                      Container(
+                        width: 18,
+                        height: 18,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: colorScheme.secondaryContainer
+                              .withValues(alpha: 0.7),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          sec.section.toString(),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      // 時間縮小並改以極小字體垂直排版
+                      Text(
+                        sec.startTime,
+                        style: TextStyle(
+                          fontSize: 8,
+                          height: 1.0,
+                          fontWeight: FontWeight.w500,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      Text(
+                        sec.endTime,
+                        style: TextStyle(
+                          fontSize: 7.5,
+                          height: 1.0,
+                          color: colorScheme.outline,
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: colorScheme.secondaryContainer
+                              .withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          sec.label,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        sec.startTime,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurfaceVariant,
+                          height: 1.1,
+                        ),
+                      ),
+                      Text(
+                        sec.endTime,
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          color: colorScheme.outline,
+                          height: 1.1,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                sec.startTime,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              Text(
-                sec.endTime,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: colorScheme.outline,
-                ),
-              ),
-            ],
           ),
         );
       }).toList(),
     );
   }
 
-  /// 建構單一星期的節次欄位（支援第 0 節至第 15 節跨節次合併課程卡片）
-  Widget _buildDayColumn(BuildContext context, int weekday) {
+  /// 建構單一星期的節次欄位（支援跨節次合併課程卡片）
+  Widget _buildDayColumn(
+    BuildContext context,
+    int weekday, {
+    required bool isCompact,
+    required double sectionRowHeight,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
-    final minSection = Course.defaultSections.first.section;
-    final maxSection = Course.defaultSections.last.section;
+    final visibleSections = _visibleSections;
+    final minSection = visibleSections.first.section;
+    final maxSection = visibleSections.last.section;
     final List<Widget> slots = [];
 
     int currentSection = minSection;
@@ -2056,7 +2244,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
           maxSection,
         );
         final span = effectiveEnd - currentSection + 1;
-        final totalHeight = span * _sectionRowHeight;
+        final totalHeight = span * sectionRowHeight;
         final isLastRow = effectiveEnd == maxSection;
 
         slots.add(
@@ -2076,10 +2264,11 @@ class _TimetableScreenState extends State<TimetableScreen> {
                       ),
               ),
             ),
-            padding: const EdgeInsets.all(4),
+            padding: EdgeInsets.all(isCompact ? 2 : 4),
             child: _CourseSlotCard(
               course: course,
               span: span,
+              isCompact: isCompact,
               onTap: () => _showCourseDetailDialog(course),
             ),
           ),
@@ -2097,7 +2286,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
               initialSection: sectionIndex,
             ),
             child: Container(
-              height: _sectionRowHeight,
+              height: sectionRowHeight,
               decoration: BoxDecoration(
                 border: Border(
                   left: BorderSide(
@@ -2127,15 +2316,17 @@ class _TimetableScreenState extends State<TimetableScreen> {
   }
 }
 
-/// 課表內的課程卡片元件（呈現課程名稱、教室代碼、授課教師，並依課程代表色區分背景）
+/// 課表內的課程卡片元件（依欄寬自動切換緊湊防溢出模式與標準模式）
 class _CourseSlotCard extends StatefulWidget {
   final Course course;
   final int span;
+  final bool isCompact;
   final VoidCallback onTap;
 
   const _CourseSlotCard({
     required this.course,
     required this.span,
+    this.isCompact = false,
     required this.onTap,
   });
 
@@ -2150,6 +2341,8 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
   Widget build(BuildContext context) {
     final course = widget.course;
     final baseColor = course.color;
+    final isCompact = widget.isCompact;
+    final span = widget.span;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -2159,7 +2352,7 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
           color: baseColor.withValues(alpha: _isHovered ? 0.22 : 0.14),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(isCompact ? 6 : 10),
           border: Border.all(
             color: baseColor.withValues(alpha: _isHovered ? 0.8 : 0.42),
             width: _isHovered ? 1.5 : 1.0,
@@ -2174,157 +2367,33 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
                 ]
               : null,
         ),
+        clipBehavior: Clip.antiAlias,
         child: Material(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
           child: InkWell(
-            borderRadius: BorderRadius.circular(10),
             onTap: widget.onTap,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 左側色條識別
+                // 左側色條識別（窄欄下縮至 3.0px）
                 Container(
-                  width: 4.5,
-                  decoration: BoxDecoration(
-                    color: baseColor,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(9),
-                      bottomLeft: Radius.circular(9),
-                    ),
-                  ),
+                  width: isCompact ? 3.0 : 4.5,
+                  color: baseColor,
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 5,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isCompact ? 3.5 : 7,
+                      vertical: isCompact ? 2.5 : 5,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // 課程名稱与跨節標籤
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (widget.span > 1) ...[
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 5,
-                                      vertical: 1,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: baseColor.withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      course.type.label,
-                                      style: TextStyle(
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: baseColor,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      '第 ${course.startSection}-${course.endSection} 節',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: baseColor.withValues(
-                                          alpha: 0.85,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                            ],
-                            Text(
-                              course.name,
-                              maxLines: widget.span > 1 ? 2 : 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.bold,
-                                height: 1.2,
-                                color: Color.alphaBlend(
-                                  Colors.black.withValues(alpha: 0.45),
-                                  baseColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        // 教室代碼與授課教師
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.location_on_outlined,
-                                  size: 11,
-                                  color: baseColor,
-                                ),
-                                const SizedBox(width: 2),
-                                Expanded(
-                                  child: Text(
-                                    course.classroom,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color.alphaBlend(
-                                        Colors.black.withValues(alpha: 0.35),
-                                        baseColor,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 1),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.person_outline_rounded,
-                                  size: 11,
-                                  color: baseColor.withValues(alpha: 0.85),
-                                ),
-                                const SizedBox(width: 2),
-                                Expanded(
-                                  child: Text(
-                                    course.professor,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      color: Color.alphaBlend(
-                                        Colors.black.withValues(alpha: 0.3),
-                                        baseColor,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                    child: isCompact
+                        ? _buildCompactContent(context, course, span, baseColor)
+                        : _buildStandardContent(
+                            context,
+                            course,
+                            span,
+                            baseColor,
+                          ),
                   ),
                 ),
               ],
@@ -2332,6 +2401,234 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
           ),
         ),
       ),
+    );
+  }
+
+  /// 窄欄/手機緊湊模式排版（防文字溢出、maxLines: 2、字體 11sp）
+  Widget _buildCompactContent(
+    BuildContext context,
+    Course course,
+    int span,
+    Color baseColor,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // 課程名稱（maxLines: 2, ellipsis, 11sp）
+        Flexible(
+          child: Text(
+            course.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              height: 1.15,
+              color: Color.alphaBlend(
+                Colors.black.withValues(alpha: 0.55),
+                baseColor,
+              ),
+            ),
+          ),
+        ),
+        // 教室（單節或跨節課若有教室則顯示，防溢出）
+        if (course.classroom.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 1.0),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.location_on_outlined,
+                  size: 9,
+                  color: baseColor,
+                ),
+                const SizedBox(width: 1),
+                Expanded(
+                  child: Text(
+                    course.classroom,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color.alphaBlend(
+                        Colors.black.withValues(alpha: 0.4),
+                        baseColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        // 若跨 3 節以上且高度充足時，可顯示教師
+        if (span >= 3 && course.professor.isNotEmpty)
+          Row(
+            children: [
+              Icon(
+                Icons.person_outline_rounded,
+                size: 9,
+                color: baseColor.withValues(alpha: 0.85),
+              ),
+              const SizedBox(width: 1),
+              Expanded(
+                child: Text(
+                  course.professor,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: Color.alphaBlend(
+                      Colors.black.withValues(alpha: 0.35),
+                      baseColor,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  /// 寬螢幕/桌面標準排版（防單節課溢出）
+  Widget _buildStandardContent(
+    BuildContext context,
+    Course course,
+    int span,
+    Color baseColor,
+  ) {
+    final showProfessor = span > 1
+        ? course.professor.isNotEmpty
+        : (course.classroom.isEmpty && course.professor.isNotEmpty);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (span > 1) ...[
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: baseColor.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        course.type.label,
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                          color: baseColor,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '第 ${course.startSection}-${course.endSection} 節',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: baseColor.withValues(
+                            alpha: 0.85,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+              ],
+              Text(
+                course.name,
+                maxLines: span > 1 ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.bold,
+                  height: 1.15,
+                  color: Color.alphaBlend(
+                    Colors.black.withValues(alpha: 0.45),
+                    baseColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (course.classroom.isNotEmpty)
+              Row(
+                children: [
+                  Icon(
+                    Icons.location_on_outlined,
+                    size: 11,
+                    color: baseColor,
+                  ),
+                  const SizedBox(width: 2),
+                  Expanded(
+                    child: Text(
+                      course.classroom,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color.alphaBlend(
+                          Colors.black.withValues(alpha: 0.35),
+                          baseColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            if (showProfessor) ...[
+              const SizedBox(height: 1),
+              Row(
+                children: [
+                  Icon(
+                    Icons.person_outline_rounded,
+                    size: 11,
+                    color: baseColor.withValues(alpha: 0.85),
+                  ),
+                  const SizedBox(width: 2),
+                  Expanded(
+                    child: Text(
+                      course.professor,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        color: Color.alphaBlend(
+                          Colors.black.withValues(alpha: 0.3),
+                          baseColor,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ],
     );
   }
 }

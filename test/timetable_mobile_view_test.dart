@@ -179,8 +179,8 @@ void main() {
     // 驗證按鈕 tooltip 變為「切換為單日清單模式」
     expect(find.byTooltip('切換為單日清單模式'), findsOneWidget);
 
-    // 驗證整週網格的左右滑動提示出現
-    expect(find.textContaining('手機整週檢視：可左右滑動瀏覽課表'), findsOneWidget);
+    // 驗證整週網格的一覽提示出現
+    expect(find.textContaining('手機整週檢視'), findsOneWidget);
 
     // 再次點擊切換回單日模式
     await tester.tap(find.byTooltip('切換為單日清單模式'));
@@ -216,5 +216,88 @@ void main() {
     expect(find.text('週一至週五'), findsOneWidget);
     // 桌面模式不顯示手機專屬的切換單日模式 tooltip
     expect(find.byTooltip('切換為整週網格模式'), findsNothing);
+  });
+
+  testWidgets('手機直立寬度下進入整週檢視模式，一覽完整週一至週五且無水平滾動軸', (WidgetTester tester) async {
+    // 設置標準手機直立螢幕尺寸 390x844
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TimetableScreen(
+          initialCourses: sampleCourses,
+          coursesStream: Stream.value(sampleCourses),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 點擊切換為整週網格模式
+    await tester.tap(find.byTooltip('切換為整週網格模式'));
+    await tester.pumpAndSettle();
+
+    // 驗證手機整週模式下不包含任何橫向滾動容器
+    final horizontalScrollViews = find.byWidgetPredicate(
+      (w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+    );
+    expect(horizontalScrollViews, findsNothing);
+
+    // 驗證表頭同時可見週一、週二、週三、週四、週五
+    expect(find.text('週一'), findsOneWidget);
+    expect(find.text('週二'), findsOneWidget);
+    expect(find.text('週三'), findsOneWidget);
+    expect(find.text('週四'), findsOneWidget);
+    expect(find.text('週五'), findsOneWidget);
+
+    // 驗證週一的演算法分析與週二的作業系統卡片均能正常顯示
+    expect(find.text('演算法分析'), findsOneWidget);
+    expect(find.text('作業系統'), findsOneWidget);
+
+    // 驗證左側節次欄精簡為「節次」標題與純數字「1」、「2」等
+    expect(find.text('節次'), findsOneWidget);
+    expect(find.text('1'), findsWidgets);
+    expect(find.text('2'), findsWidgets);
+  });
+
+  testWidgets('手機整週模式下預設精簡無課早晚時段，可透過選單切換全天時段', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TimetableScreen(
+          initialCourses: sampleCourses,
+          coursesStream: Stream.value(sampleCourses),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 切換為整週模式
+    await tester.tap(find.byTooltip('切換為整週網格模式'));
+    await tester.pumpAndSettle();
+
+    // 因 sampleCourses 沒有第 0 節，預設精簡模式下不應出現第 0 節數字「0」
+    expect(find.text('0'), findsNothing);
+
+    // 開啟更多選項選單
+    await tester.tap(find.byTooltip('更多選項'));
+    await tester.pumpAndSettle();
+
+    // 點擊「全天時段 / 精簡時段」切換
+    await tester.tap(find.text('精簡時段 (隱藏無課早鳥/夜間)'));
+    await tester.pumpAndSettle();
+
+    // 開啟全天時段後，應出現第 0 節「0」
+    expect(find.text('0'), findsOneWidget);
   });
 }
