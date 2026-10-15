@@ -263,41 +263,4 @@ void main() {
     expect(find.text('1'), findsWidgets);
     expect(find.text('2'), findsWidgets);
   });
-
-  testWidgets('手機整週模式下預設精簡無課早晚時段，可透過選單切換全天時段', (WidgetTester tester) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: TimetableScreen(
-          initialCourses: sampleCourses,
-          coursesStream: Stream.value(sampleCourses),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    // 切換為整週模式
-    await tester.tap(find.byTooltip('切換為整週網格模式'));
-    await tester.pumpAndSettle();
-
-    // 因 sampleCourses 沒有第 0 節，預設精簡模式下不應出現第 0 節數字「0」
-    expect(find.text('0'), findsNothing);
-
-    // 開啟更多選項選單
-    await tester.tap(find.byTooltip('更多選項'));
-    await tester.pumpAndSettle();
-
-    // 點擊「全天時段 / 精簡時段」切換
-    await tester.tap(find.text('精簡時段 (隱藏無課早鳥/夜間)'));
-    await tester.pumpAndSettle();
-
-    // 開啟全天時段後，應出現第 0 節「0」
-    expect(find.text('0'), findsOneWidget);
-  });
 }

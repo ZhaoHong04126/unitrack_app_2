@@ -1,5 +1,4 @@
 // 課表畫面（支援週一至週五/週末彈性切換、課程新增/詳情/編輯/刪除、手機橫向滑動與桌面平鋪響應式佈局，串接 Cloud Firestore 雲端即時同步）
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/course.dart';
@@ -63,9 +62,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
   /// 手機/窄螢幕左側節次/時間軸欄寬（瘦身為 38.0，大幅節省橫向空間）
   static const double _timeColumnWidthMobile = 38.0;
 
-  /// 是否強制顯示全天完整節次（含第 0 節與夜間節次），預設為 false（無課時預設隱藏第 0 節與夜間節次）
-  bool _showFullSections = false;
-
   @override
   void initState() {
     super.initState();
@@ -87,22 +83,8 @@ class _TimetableScreenState extends State<TimetableScreen> {
   int get _visibleDayCount =>
       (_showWeekend || _courses.any((c) => c.weekday >= 6)) ? 7 : 5;
 
-  /// 當前課表應顯示的節次清單（若未開啟全天時段且無第 0 節/夜間課，自動縮減為日間實用時段）
-  List<TimetableSection> get _visibleSections {
-    if (_showFullSections) {
-      return Course.defaultSections;
-    }
-    final hasSection0 = _courses.any((c) => c.startSection == 0);
-    final start = hasSection0 ? 0 : 1;
-    final latestSection = _courses.isEmpty
-        ? 8
-        : _courses.map((c) => c.endSection).reduce(math.max);
-    final end = math.max(8, latestSection).clamp(8, Course.defaultSections.last.section);
-
-    return Course.defaultSections
-        .where((s) => s.section >= start && s.section <= end)
-        .toList();
-  }
+  /// 當前課表顯示的完整節次清單（全時段完整顯示第 0 節至第 14 節）
+  List<TimetableSection> get _visibleSections => Course.defaultSections;
 
   int get _totalCredits =>
       _courses.fold<int>(0, (sum, course) => sum + course.credits);
@@ -885,52 +867,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
     }
   }
 
-  /// 清空所有課程確認對話框
-  Future<void> _confirmClearAllCourses() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('清空課表'),
-        content: const Text('確定要移除雲端課表中的所有課程嗎？此動作將同步自雲端資料庫刪除。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(dialogContext).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('確定清空'),
-          ),
-        ],
-      ),
-    );
 
-    if (confirmed == true && mounted) {
-      try {
-        await CourseService().clearAllCourses();
-        if (mounted) {
-          AppNotification.show(
-            context,
-            title: '課表已清空',
-            message: '已成功移除所有雲端課程。',
-            icon: Icons.delete_sweep_rounded,
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          AppNotification.show(
-            context,
-            title: '清空失敗',
-            message: '無法清空雲端課表：${e.toString().replaceFirst("Exception: ", "")}',
-            icon: Icons.error_outline,
-          );
-        }
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1223,7 +1160,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                     });
                   },
                 ),
-                // 更多動作選單（切換週末與清空課表）
+                // 更多動作選單（切換週末）
                 Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: PopupMenuButton<String>(
@@ -1234,12 +1171,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
                         setState(() {
                           _showWeekend = !_showWeekend;
                         });
-                      } else if (value == 'toggle_full_sections') {
-                        setState(() {
-                          _showFullSections = !_showFullSections;
-                        });
-                      } else if (value == 'clear_all') {
-                        _confirmClearAllCourses();
                       }
                     },
                     itemBuilder: (context) => [
@@ -1265,46 +1196,11 @@ class _TimetableScreenState extends State<TimetableScreen> {
                           ],
                         ),
                       ),
-                      PopupMenuItem(
-                        value: 'toggle_full_sections',
-                        child: Row(
-                          children: [
-                            Icon(
-                              _showFullSections
-                                  ? Icons.check_box_rounded
-                                  : Icons.check_box_outline_blank_rounded,
-                              size: 20,
-                              color: _showFullSections
-                                  ? colorScheme.primary
-                                  : null,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              _showFullSections
-                                  ? '全天時段 (已開啟完整時段)'
-                                  : '精簡時段 (隱藏無課早鳥/夜間)',
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (currentCourses.isNotEmpty)
-                        const PopupMenuItem(
-                          value: 'clear_all',
-                          child: Row(
-                            children: [
-                              Icon(Icons.delete_sweep_outlined,
-                                  size: 20, color: Colors.red),
-                              SizedBox(width: 8),
-                              Text('清空所有課程',
-                                  style: TextStyle(color: Colors.red)),
-                            ],
-                          ),
-                        ),
                     ],
                   ),
                 ),
               ] else ...[
-                // 桌面與平板寬螢幕模式：完整文字 FilterChip 與按鈕
+                // 桌面與平板寬螢幕模式：完整文字 FilterChip 與新增課程按鈕
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: FilterChip(
@@ -1312,7 +1208,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                     showCheckmark: false,
                     avatar: Icon(
                       effectiveShowWeekend
-                                  ? Icons.date_range_rounded
+                          ? Icons.date_range_rounded
                           : Icons.view_week_outlined,
                       size: 16,
                       color: effectiveShowWeekend
@@ -1328,36 +1224,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
                     },
                   ),
                 ),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: FilterChip(
-                    selected: _showFullSections,
-                    showCheckmark: false,
-                    avatar: Icon(
-                      _showFullSections
-                          ? Icons.schedule_rounded
-                          : Icons.timelapse_rounded,
-                      size: 16,
-                      color: _showFullSections
-                          ? colorScheme.onSecondaryContainer
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    label: Text(_showFullSections ? '全天時段' : '精簡時段'),
-                    onSelected: (val) {
-                      setState(() {
-                        _showFullSections = val;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (currentCourses.isNotEmpty)
-                  IconButton(
-                    tooltip: '清空課表',
-                    onPressed: _confirmClearAllCourses,
-                    icon: const Icon(Icons.delete_sweep_outlined),
-                  ),
+                const SizedBox(width: 12),
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: FilledButton.icon(
