@@ -1,10 +1,11 @@
-// 多平台響應式導覽主框架（整合手機底部 NavigationBar / Drawer 與桌面側邊欄 NavigationRail，並串接 Firebase Auth 登入狀態與登出）
+// 多平台響應式導覽主框架（整合手機底部 NavigationBar / Drawer、桌面側邊欄 NavigationRail、系統設定與 Firebase Auth 登入狀態/登出）
 import 'package:flutter/material.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/timetable_screen.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/graduation_screen.dart';
 import 'screens/expense_screen.dart';
+import 'screens/settings_screen.dart';
 import 'services/auth_service.dart';
 import 'widgets/app_notification.dart';
 import 'widgets/responsive_layout.dart';
@@ -66,6 +67,11 @@ class _MainScreenState extends State<MainScreen> {
       label: '記帳本',
       icon: Icons.account_balance_wallet_outlined,
       selectedIcon: Icons.account_balance_wallet,
+    ),
+    _NavItem(
+      label: '系統設定',
+      icon: Icons.settings_outlined,
+      selectedIcon: Icons.settings,
     ),
   ];
 
@@ -160,6 +166,12 @@ class _MainScreenState extends State<MainScreen> {
       const CalendarScreen(),
       const GraduationScreen(),
       const ExpenseScreen(),
+      SettingsScreen(
+        onProfileUpdated: () {
+          setState(() {});
+        },
+        onSignOut: () => _handleSignOut(context),
+      ),
     ];
 
     final currentPage = pages[_currentIndex];
@@ -201,15 +213,22 @@ class _MainScreenState extends State<MainScreen> {
                 labelType: NavigationRailLabelType.all,
                 leading: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: CircleAvatar(
-                    radius: 20,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    child: Text(
-                      userProfile.initial,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () => _switchTab(5),
+                    child: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: _currentIndex == 5
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.primaryContainer,
+                      child: Text(
+                        userProfile.initial,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: _currentIndex == 5
+                              ? Colors.white
+                              : Theme.of(context).colorScheme.primary,
+                        ),
                       ),
                     ),
                   ),
@@ -219,11 +238,29 @@ class _MainScreenState extends State<MainScreen> {
                     alignment: Alignment.bottomCenter,
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 16),
-                      child: IconButton(
-                        icon: const Icon(Icons.logout_rounded),
-                        tooltip: '登出帳號 (${userProfile.email.isNotEmpty ? userProfile.email : userProfile.displayName})',
-                        color: Theme.of(context).colorScheme.error,
-                        onPressed: () => _handleSignOut(context),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              _currentIndex == 5
+                                  ? Icons.settings
+                                  : Icons.settings_outlined,
+                              color: _currentIndex == 5
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
+                            tooltip: '系統設定',
+                            onPressed: () => _switchTab(5),
+                          ),
+                          const SizedBox(height: 6),
+                          IconButton(
+                            icon: const Icon(Icons.logout_rounded),
+                            tooltip: '登出帳號 (${userProfile.email.isNotEmpty ? userProfile.email : userProfile.displayName})',
+                            color: Theme.of(context).colorScheme.error,
+                            onPressed: () => _handleSignOut(context),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -273,55 +310,68 @@ class _MainScreenState extends State<MainScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 使用者資訊頂部橫幅
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withValues(alpha: 0.45),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 24,
-                    backgroundColor: colorScheme.primary,
-                    child: Text(
-                      userProfile.initial,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+            // 使用者資訊頂部橫幅（點擊可直接切換至系統設定）
+            InkWell(
+              onTap: () {
+                Navigator.of(context).pop();
+                _switchTab(5);
+              },
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: _currentIndex == 5
+                      ? colorScheme.primaryContainer.withValues(alpha: 0.7)
+                      : colorScheme.primaryContainer.withValues(alpha: 0.45),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: colorScheme.primary,
+                      child: Text(
+                        userProfile.initial,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          userProfile.displayName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            userProfile.displayName,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          userProfile.email.isNotEmpty
-                              ? userProfile.email
-                              : (widget.userDepartment.isNotEmpty
-                                  ? widget.userDepartment
-                                  : '已登入使用者'),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                          Text(
+                            userProfile.email.isNotEmpty
+                                ? userProfile.email
+                                : (widget.userDepartment.isNotEmpty
+                                    ? widget.userDepartment
+                                    : '已登入使用者'),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    Icon(
+                      Icons.settings_outlined,
+                      size: 20,
+                      color: colorScheme.primary,
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -404,13 +454,14 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  /// Web / Windows 桌面端展開式側邊欄導航（含品牌標題與底部使用者資訊與登出卡片）
+  /// Web / Windows 桌面端展開式側邊欄導航（含品牌標題與底部使用者資訊、系統設定與登出卡片）
   Widget _buildDesktopSidebar(
     BuildContext context,
     ({String displayName, String email, String initial}) userProfile,
   ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isSettingsActive = _currentIndex == 5;
 
     return Container(
       width: 250,
@@ -481,65 +532,109 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
 
-          // 底部使用者資訊與登出卡片
-          Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-              ),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 18,
-                  backgroundColor: colorScheme.primaryContainer,
-                  child: Text(
-                    userProfile.initial,
-                    style: TextStyle(
-                      color: colorScheme.onPrimaryContainer,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+          // 底部使用者資訊與操作卡片（整合「系統設定」與「登出帳號」）
+          Material(
+            color: Colors.transparent,
+            child: Container(
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isSettingsActive
+                    ? colorScheme.primaryContainer.withValues(alpha: 0.35)
+                    : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isSettingsActive
+                      ? colorScheme.primary
+                      : colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  width: isSettingsActive ? 1.5 : 1.0,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => _switchTab(5),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  child: Row(
                     children: [
-                      Text(
-                        userProfile.displayName,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: isSettingsActive
+                            ? colorScheme.primary
+                            : colorScheme.primaryContainer,
+                        child: Text(
+                          userProfile.initial,
+                          style: TextStyle(
+                            color: isSettingsActive
+                                ? Colors.white
+                                : colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                      Text(
-                        userProfile.email.isNotEmpty
-                            ? userProfile.email
-                            : (widget.creditSummary.isNotEmpty
-                                ? widget.creditSummary
-                                : '已登入使用者'),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              userProfile.displayName,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: isSettingsActive
+                                    ? colorScheme.primary
+                                    : null,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              userProfile.email.isNotEmpty
+                                  ? userProfile.email
+                                  : (widget.creditSummary.isNotEmpty
+                                      ? widget.creditSummary
+                                      : '已登入使用者'),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          isSettingsActive
+                              ? Icons.settings
+                              : Icons.settings_outlined,
+                          size: 20,
+                          color: isSettingsActive
+                              ? colorScheme.primary
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                        tooltip: '系統設定',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                        onPressed: () => _switchTab(5),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.logout_rounded, size: 20),
+                        tooltip: '登出帳號',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
+                        color: colorScheme.error,
+                        onPressed: () => _handleSignOut(context),
                       ),
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.logout_rounded, size: 20),
-                  tooltip: '登出帳號',
-                  color: colorScheme.error,
-                  onPressed: () => _handleSignOut(context),
-                ),
-              ],
+              ),
             ),
           ),
         ],

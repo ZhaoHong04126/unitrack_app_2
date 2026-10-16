@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/course.dart';
 import '../services/course_service.dart';
+import '../services/settings_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/app_notification.dart';
 
@@ -67,8 +68,8 @@ class _TimetableScreenState extends State<TimetableScreen> {
     super.initState();
     _selectedWeekday = DateTime.now().weekday;
     _courses = List<Course>.from(widget.initialCourses);
-    // 若初始課程或今天包含週六或週日，自動開啟週末顯示
-    if (_courses.any((c) => c.weekday >= 6) || _selectedWeekday >= 6) {
+    // 若初始課程包含週六或週日，或設定開啟週末，顯示週末
+    if (_courses.any((c) => c.weekday >= 6) || SettingsService().weekendTimetable) {
       _showWeekend = true;
     }
   }
@@ -81,7 +82,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
   }
 
   int get _visibleDayCount =>
-      (_showWeekend || _courses.any((c) => c.weekday >= 6)) ? 7 : 5;
+      (_showWeekend || SettingsService().weekendTimetable || _courses.any((c) => c.weekday >= 6)) ? 7 : 5;
 
   /// 當前課表顯示的完整節次清單（全時段完整顯示第 0 節至第 14 節）
   List<TimetableSection> get _visibleSections => Course.defaultSections;
@@ -883,10 +884,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
             snapshot.data ?? (snapshot.hasError ? [] : _courses);
         _courses = currentCourses;
 
-        // 若有週末課程且尚未開啟，自動切換
-        final effectiveShowWeekend =
-            _showWeekend || currentCourses.any((c) => c.weekday >= 6);
-
         // 通知外部課程變更（若有監聽器）
         if (!listEquals(_lastCourses, currentCourses)) {
           _lastCourses = List<Course>.from(currentCourses);
@@ -1156,71 +1153,8 @@ class _TimetableScreenState extends State<TimetableScreen> {
                     });
                   },
                 ),
-                // 更多動作選單（切換週末）
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert_rounded),
-                    tooltip: '更多選項',
-                    onSelected: (value) {
-                      if (value == 'toggle_weekend') {
-                        setState(() {
-                          _showWeekend = !_showWeekend;
-                        });
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'toggle_weekend',
-                        child: Row(
-                          children: [
-                            Icon(
-                              effectiveShowWeekend
-                                  ? Icons.check_box_rounded
-                                  : Icons.check_box_outline_blank_rounded,
-                              size: 20,
-                              color: effectiveShowWeekend
-                                  ? colorScheme.primary
-                                  : null,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              effectiveShowWeekend
-                                  ? '顯示週末 (已開啟)'
-                                  : '顯示週末 (週六/週日)',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ] else ...[
-                // 桌面與平板寬螢幕模式：完整文字 FilterChip 與新增課程按鈕
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: FilterChip(
-                    selected: effectiveShowWeekend,
-                    showCheckmark: false,
-                    avatar: Icon(
-                      effectiveShowWeekend
-                          ? Icons.date_range_rounded
-                          : Icons.view_week_outlined,
-                      size: 16,
-                      color: effectiveShowWeekend
-                          ? colorScheme.onSecondaryContainer
-                          : colorScheme.onSurfaceVariant,
-                    ),
-                    label:
-                        Text(effectiveShowWeekend ? '含週末 (7天)' : '週一至週五'),
-                    onSelected: (val) {
-                      setState(() {
-                        _showWeekend = val;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
+                // 桌面與平板寬螢幕模式：新增課程按鈕
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: FilledButton.icon(

@@ -212,8 +212,8 @@ void main() {
 
     // 桌面寬螢幕模式下顯示「節次 / 時間」表格標題
     expect(find.text('節次 / 時間'), findsOneWidget);
-    // 桌面模式顯示完整的週一至週五 FilterChip
-    expect(find.text('週一至週五'), findsOneWidget);
+    // 桌面模式顯示新增課程按鈕
+    expect(find.text('新增課程'), findsOneWidget);
     // 桌面模式不顯示手機專屬的切換單日模式 tooltip
     expect(find.byTooltip('切換為整週網格模式'), findsNothing);
     // 驗證雙位數節次標籤（第 10 節 ~ 第 14 節）完整渲染且無文字換行溢出

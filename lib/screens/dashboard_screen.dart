@@ -154,14 +154,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _saveSemesterToPrefs(String value) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_semesterPrefKey, value);
-    } catch (e) {
-      debugPrint('⚠️ [DashboardScreen] 儲存學期失敗: $e');
-    }
-  }
 
   void _navigateOrPush(
     BuildContext context,
@@ -208,119 +200,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _showEditSemesterDialog() async {
-    final controller = TextEditingController(text: _semesterLabel);
-    const presets = [
-      '113學年度 第 1 學期',
-      '113學年度 第 2 學期',
-      '113-1 第 8 週',
-      '113-2 第 1 週',
-    ];
-
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.edit_calendar_rounded, color: Colors.indigo),
-              SizedBox(width: 8),
-              Text('編輯學期資訊'),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '自訂主畫面與導覽列顯示的當前學期或週次資訊：',
-                  style: TextStyle(fontSize: 13, color: Colors.black54),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: controller,
-                  decoration: InputDecoration(
-                    labelText: '學期 / 週次名稱',
-                    hintText: '例：113學年度 第 1 學期',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.clear_rounded, size: 18),
-                      onPressed: () => controller.clear(),
-                    ),
-                  ),
-                  autofocus: true,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  '快速選取：',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: presets.map((preset) {
-                    return ActionChip(
-                      label: Text(preset, style: const TextStyle(fontSize: 12)),
-                      onPressed: () {
-                        controller.text = preset;
-                      },
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                controller.text = '113學年度 第 1 學期';
-              },
-              child: const Text('恢復預設'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(null),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final text = controller.text.trim();
-                Navigator.of(ctx).pop(
-                  text.isNotEmpty ? text : '113學年度 第 1 學期',
-                );
-              },
-              child: const Text('儲存'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result != null && mounted) {
-      setState(() {
-        _semesterLabel = result;
-      });
-      await _saveSemesterToPrefs(result);
-      if (mounted) {
-        AppNotification.show(
-          context,
-          title: '學期資訊已更新',
-          message: '已設定為「$result」',
-          icon: Icons.check_circle_outline,
-        );
-      }
-    }
-  }
 
   Future<void> _showAddTodoDialog() async {
     final titleController = TextEditingController();
@@ -485,7 +364,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final colorScheme = theme.colorScheme;
     final hasUser = widget.userName.trim().isNotEmpty;
     final greetingText = hasUser ? '早安，${widget.userName} 👋' : '早安 👋';
-    final subTitleText = '$_semesterLabel (${ResponsiveLayout.platformLabel(context)})';
+    final subTitleText = _semesterLabel;
 
     return StreamBuilder<List<Course>>(
       stream: widget.coursesStream ?? CourseService().getCoursesStream(),
@@ -509,32 +388,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                InkWell(
-                  onTap: _showEditSemesterDialog,
-                  borderRadius: BorderRadius.circular(4),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 1),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            subTitleText,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.edit_outlined,
-                          size: 13,
-                          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
-                        ),
-                      ],
-                    ),
+                Text(
+                  subTitleText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],

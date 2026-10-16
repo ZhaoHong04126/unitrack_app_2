@@ -128,6 +128,25 @@ class AuthService {
     }
   }
 
+  /// 更新當前使用者的個人顯示名稱
+  Future<void> updateDisplayName(String displayName) async {
+    try {
+      final user = _auth.currentUser;
+      final trimmed = displayName.trim();
+      if (user != null) {
+        await user.updateDisplayName(trimmed);
+        await user.reload();
+        try {
+          await _firestore.collection('users').doc(user.uid).set({
+            'displayName': trimmed,
+          }, SetOptions(merge: true));
+        } catch (_) {}
+      }
+    } catch (e) {
+      throw AuthException('更新使用者名稱失敗，請稍後再試。($e)');
+    }
+  }
+
   /// 登出帳號
   Future<void> signOut() async {
     try {

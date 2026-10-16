@@ -229,7 +229,7 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
   });
 
-  testWidgets('點擊學期副標題可自訂學期資訊並即時更新', (WidgetTester tester) async {
+  testWidgets('學期副標題純資訊靜態呈現，不顯示編輯按鈕且不可彈出對話框', (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: DashboardScreen(
@@ -239,33 +239,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 點擊學期資訊
-    final semesterTap = find.byIcon(Icons.edit_outlined);
-    expect(semesterTap, findsOneWidget);
-    await tester.tap(semesterTap);
-    await tester.pumpAndSettle();
-
-    // 驗證對話框開啟
-    expect(find.text('編輯學期資訊'), findsOneWidget);
-
-    // 點擊快速標籤 "113-1 第 8 週"
-    await tester.tap(find.text('113-1 第 8 週'));
-    await tester.pumpAndSettle();
-
-    // 點擊儲存
-    await tester.tap(find.widgetWithText(FilledButton, '儲存'));
-    await tester.pumpAndSettle();
-
-    // 排空 AppNotification 計時器
-    await tester.pump(const Duration(seconds: 4));
-
-    // 驗證 AppBar 標題已更新
-    expect(
-      find.descendant(
-        of: find.byType(AppBar),
-        matching: find.textContaining('113-1 第 8 週'),
-      ),
-      findsOneWidget,
-    );
+    // 驗證靜態顯示學期資訊
+    expect(find.text('113學年度 第 1 學期'), findsOneWidget);
+    // 不再顯示編輯鉛筆圖示
+    expect(find.byIcon(Icons.edit_outlined), findsNothing);
   });
 }
