@@ -42,6 +42,9 @@ class SettingsService {
   factory SettingsService() => _instance;
   SettingsService._internal();
 
+  // 應用程式版本
+  static const String appVersion = 'v0.9.0';
+
   // SharedPreferences Keys
   static const String _keyThemeMode = 'unitrack_settings_theme_mode_v1';
   static const String _keyColorSeed = 'unitrack_settings_color_seed_v1';
@@ -215,7 +218,7 @@ class SettingsService {
       'expenseReminder': _expenseReminder,
       'weekendTimetable': _weekendTimetable,
       'exportedAt': DateTime.now().toIso8601String(),
-      'appVersion': '1.0.0+1',
+      'appVersion': appVersion,
     };
     return const JsonEncoder.withIndent('  ').convert(map);
   }

@@ -646,7 +646,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             leading: const Icon(Icons.verified_outlined),
             title: const Text('應用程式版本'),
-            subtitle: const Text('UniTrack Pro v1.0.0+1 (Official Build)'),
+            subtitle: Text('UniTrack Pro ${SettingsService.appVersion} (Official Build)'),
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
