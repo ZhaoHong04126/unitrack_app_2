@@ -191,12 +191,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       '分類標籤：',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black54,
+                        color: Theme.of(dialogCtx).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -215,7 +215,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           selected: isSelected,
                           selectedColor: cat.color,
                           labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black87,
+                            color: isSelected
+                                ? Colors.white
+                                : Theme.of(dialogCtx).colorScheme.onSurface,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                           ),
                           onSelected: (selected) {
@@ -338,8 +340,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: PopupMenuButton<String>(
                   tooltip: '個人帳號與設定',
                   offset: const Offset(0, 48),
+                  color: colorScheme.surfaceContainerHigh,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                    ),
                   ),
                   onSelected: (val) async {
                     if (val == 'logout') {
@@ -408,29 +414,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     final displayName = hasUser
                         ? widget.userName
                         : (email.isNotEmpty ? email.split('@').first : '同學');
+                    final menuColorScheme = Theme.of(ctx).colorScheme;
 
                     return [
                       PopupMenuItem<String>(
                         enabled: false,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
+                        child: Row(
                           children: [
-                            Text(
-                              displayName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                                fontSize: 15,
-                              ),
-                            ),
-                            if (email.isNotEmpty)
-                              Text(
-                                email,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.black54,
+                            CircleAvatar(
+                              radius: 18,
+                              backgroundColor: menuColorScheme.primaryContainer,
+                              child: Text(
+                                displayName.trim().isNotEmpty
+                                    ? displayName.trim().substring(0, 1).toUpperCase()
+                                    : 'U',
+                                style: TextStyle(
+                                  color: menuColorScheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
                                 ),
                               ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    displayName,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: menuColorScheme.onSurface,
+                                      fontSize: 15,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (email.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      email,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: menuColorScheme.onSurfaceVariant,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ],
                         ),
                       ),

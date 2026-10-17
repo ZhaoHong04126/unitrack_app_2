@@ -2187,6 +2187,9 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
     int span,
     Color baseColor,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final blendBase = isDark ? Colors.white : Colors.black;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2202,7 +2205,7 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
               fontWeight: FontWeight.bold,
               height: 1.15,
               color: Color.alphaBlend(
-                Colors.black.withValues(alpha: 0.55),
+                blendBase.withValues(alpha: isDark ? 0.75 : 0.55),
                 baseColor,
               ),
             ),
@@ -2217,7 +2220,9 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
                 Icon(
                   Icons.location_on_outlined,
                   size: 9,
-                  color: baseColor,
+                  color: isDark
+                      ? Color.alphaBlend(Colors.white.withValues(alpha: 0.5), baseColor)
+                      : baseColor,
                 ),
                 const SizedBox(width: 1),
                 Expanded(
@@ -2229,7 +2234,7 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
                       fontSize: 9.5,
                       fontWeight: FontWeight.w600,
                       color: Color.alphaBlend(
-                        Colors.black.withValues(alpha: 0.4),
+                        blendBase.withValues(alpha: isDark ? 0.6 : 0.4),
                         baseColor,
                       ),
                     ),
@@ -2256,7 +2261,7 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
                   style: TextStyle(
                     fontSize: 9,
                     color: Color.alphaBlend(
-                      Colors.black.withValues(alpha: 0.35),
+                      blendBase.withValues(alpha: isDark ? 0.55 : 0.35),
                       baseColor,
                     ),
                   ),
@@ -2275,6 +2280,8 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
     int span,
     Color baseColor,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final blendBase = isDark ? Colors.white : Colors.black;
     final showProfessor = span > 1
         ? course.professor.isNotEmpty
         : (course.classroom.isEmpty && course.professor.isNotEmpty);
@@ -2305,7 +2312,9 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
                         style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.bold,
-                          color: baseColor,
+                          color: isDark
+                              ? Color.alphaBlend(Colors.white.withValues(alpha: 0.65), baseColor)
+                              : baseColor,
                         ),
                       ),
                     ),
@@ -2318,9 +2327,9 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
-                          color: baseColor.withValues(
-                            alpha: 0.85,
-                          ),
+                          color: isDark
+                              ? Color.alphaBlend(Colors.white.withValues(alpha: 0.55), baseColor)
+                              : baseColor.withValues(alpha: 0.85),
                         ),
                       ),
                     ),
@@ -2337,7 +2346,7 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
                   fontWeight: FontWeight.bold,
                   height: 1.15,
                   color: Color.alphaBlend(
-                    Colors.black.withValues(alpha: 0.45),
+                    blendBase.withValues(alpha: isDark ? 0.75 : 0.45),
                     baseColor,
                   ),
                 ),
@@ -2355,7 +2364,9 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
                   Icon(
                     Icons.location_on_outlined,
                     size: 11,
-                    color: baseColor,
+                    color: isDark
+                        ? Color.alphaBlend(Colors.white.withValues(alpha: 0.5), baseColor)
+                        : baseColor,
                   ),
                   const SizedBox(width: 2),
                   Expanded(
@@ -2367,7 +2378,7 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
                         fontSize: 10.5,
                         fontWeight: FontWeight.w600,
                         color: Color.alphaBlend(
-                          Colors.black.withValues(alpha: 0.35),
+                          blendBase.withValues(alpha: isDark ? 0.6 : 0.35),
                           baseColor,
                         ),
                       ),
@@ -2382,7 +2393,9 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
                   Icon(
                     Icons.person_outline_rounded,
                     size: 11,
-                    color: baseColor.withValues(alpha: 0.85),
+                    color: isDark
+                        ? Color.alphaBlend(Colors.white.withValues(alpha: 0.5), baseColor)
+                        : baseColor.withValues(alpha: 0.85),
                   ),
                   const SizedBox(width: 2),
                   Expanded(
@@ -2393,7 +2406,7 @@ class _CourseSlotCardState extends State<_CourseSlotCard> {
                       style: TextStyle(
                         fontSize: 10.5,
                         color: Color.alphaBlend(
-                          Colors.black.withValues(alpha: 0.3),
+                          blendBase.withValues(alpha: isDark ? 0.55 : 0.3),
                           baseColor,
                         ),
                       ),
