@@ -43,7 +43,7 @@ class SettingsService {
   SettingsService._internal();
 
   // 應用程式版本
-  static const String appVersion = 'v0.9.0';
+  static const String appVersion = 'v0.11.0';
 
   // SharedPreferences Keys
   static const String _keyThemeMode = 'unitrack_settings_theme_mode_v1';

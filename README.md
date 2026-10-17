@@ -4,7 +4,7 @@
 [![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev/)
 [![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Web%20%7C%20Desktop-4CAF50?style=for-the-badge)](#)
-[![Version](https://img.shields.io/badge/Version-0.9.0%2B1-blue?style=for-the-badge)](#)
+[![Version](https://img.shields.io/badge/Version-0.11.0%2B1-blue?style=for-the-badge)](#)
 
 > **專為大學生打造的一站式綜合校園生活與學業管理助手**  
 > 具備高度自適應的現代化跨平台體驗（Android、Web、桌面端），整合雲端即時同步與直覺設計，讓課程安排與大學生活更加有條不紊。
