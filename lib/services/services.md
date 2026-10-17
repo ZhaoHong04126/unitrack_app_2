@@ -17,7 +17,7 @@
   * **登入帳號 (`signInWithEmail`)**：驗證信箱與密碼。
   * **重設密碼信 (`sendPasswordResetEmail`)**：向指定 Email 發送官方重設密碼連結。
   * **登出帳號 (`signOut`)**：安全登出並觸發驗證狀態流變更。
-  * **個人資料更新 (`updateProfileName`)**：同步更新 Firebase Auth 使用者名稱與 Firestore 資料文件。
+  * **個人資料更新 (`updateDisplayName`)**：同步更新 Firebase Auth 使用者名稱與 Firestore 資料文件。
   * **例外錯誤中文化 (`AuthException`)**：攔截 `FirebaseAuthException`，將常見錯誤碼（如 `user-not-found`, `wrong-password`, `email-already-in-use`, `weak-password`, `invalid-email` 等）自動轉譯為繁體中文友善提示。
 
 ---
@@ -31,27 +31,25 @@
     * 監聽集合快照（`snapshots()`），任何裝置上的資料變動皆能即時推送給前端 `StreamBuilder`。
     * 串流自動依照「星期（週一至週日）」與「開始節次」進行升冪排序。
   * **單次讀取 (`getCoursesOnce()`)**：供無即時監聽需求之統計計算或一次性載入使用。
-  * **CRUD 操作**：
-    * `addCourse(Course course)`：新增課程至雲端，自動產生唯一 ID。
-    * `updateCourse(Course course)`：更新既有課程資訊。
-    * `deleteCourse(String courseId)`：刪除指定課程。
+  * **CRUD 與批次清除操作**：
+    * `saveCourse(Course course)`：新增或更新課程至雲端（若 `id` 為空則自動產生文件 ID）。
+    * `deleteCourse(String courseId)`：依據文件 ID 刪除指定雲端課程。
+    * `clearAllCourses()`：批次刪除清空目前使用者的所有雲端課程。
 
 ---
 
 ### 3. `settings_service.dart` — 系統偏好與設定服務 (`SettingsService`)
 * **設計模式**：單例模式（Singleton Pattern，`SettingsService()`）。
 * **核心職責**：
-  * **非同步初始化 (`initialize()`)**：在 `main.dart` 啟動階段讀取 `SharedPreferences` 中的偏好快取。
+  * **非同步初始化與假資料清理 (`initialize()`)**：在 `main.dart` 啟動階段讀取 `SharedPreferences` 中的偏好快取，並自動清除舊版遺留的預設假資料與廢棄鍵值（`_legacyFakeKeys`）。
   * **全域主題響應 (`themeNotifier`)**：
-    * 提供 `ValueNotifier<ThemeSettings>`，無須依賴龐大的第三方狀態管理庫即可實現全域主題色彩與 `ThemeMode`（淺色/深色/跟隨系統）即時換色。
-    * 內建 7 款 Material 3 主題代表色：經典靛藍、蔚藍晴空、海島藍綠、典雅紫羅蘭、活力暖橘、森林翠綠、櫻花淡粉。
-  * **學籍與學期偏好**：
-    * 持久化儲存學系名稱、學號與當前學年度學期（連動儀表板與課表顯示）。
-  * **課表偏好設定**：週末課表（週六週日）預設顯示開關。
-  * **提醒推播設定**：課前 10 分鐘通知、早晨待辦摘要、夜間記帳提醒設定。
-  * **備份與還原**：
-    * `exportSettingsAsJson()`：將所有本地設定封裝為標準 JSON 格式字串。
-    * `resetToDefaults()`：一鍵重設所有個人偏好為出廠設定。
+    * 提供 `ValueNotifier<ThemeSettings>`，無須依賴龐大的第三方狀態管理庫即可實現全域主題模式 `ThemeMode`（淺色/深色/跟隨系統）與主題代表色即時切換。
+  * **課表與提醒偏好設定**：
+    * `setClassReminder(bool)`：上課前 10 分鐘課堂提醒開關。
+    * `setTodoReminder(bool)`：晨間待辦摘要提醒開關。
+    * `setExpenseReminder(bool)`：夜間記帳提醒開關。
+    * `setWeekendTimetable(bool)`：週末課表預設顯示開關。
+  * **資料重置 (`resetToDefaults()`)**：一鍵清空本地所有 `SharedPreferences` 快取資料（含待辦事項與偏好設定）並還原為出廠預設值。
 
 ---
 

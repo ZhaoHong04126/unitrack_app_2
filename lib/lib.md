@@ -24,10 +24,10 @@ lib/
 * **主要職責**：
   * 初始化 Flutter 綁定 (`WidgetsFlutterBinding.ensureInitialized()`)。
   * 初始化跨平台 Firebase 配置 (`Firebase.initializeApp`)。
-  * 初始化系統設定與偏好服務 (`SettingsService().initialize()`)，讀取本地持久化的深淺色外觀與主題色彩設定。
-  * 透過 `ValueListenableBuilder<ThemeSettings>` 監聽全域主題色彩與 `ThemeMode`（淺色/深色/跟隨系統），實現無延遲、零額外第三方套件依賴的全域動態即時換色。
+  * 初始化系統設定與偏好服務 (`SettingsService().initialize()`)，讀取本地持久化的深淺色外觀設定並自動清理舊版遺留假資料快取。
+  * 透過 `ValueListenableBuilder<ThemeSettings>` 監聽全域 `ThemeMode`（淺色/深色/跟隨系統）與主題色彩，實現無延遲、零額外第三方套件依賴的全域動態即時換色。
   * 掛載自定義的 `AdaptiveScrollBehavior`，讓滑鼠滾輪、觸控板與觸控螢幕皆具備流暢的拖曳滾動體驗。
-  * 首頁預設掛載 `AuthGate`，依據 Firebase 登入狀態自動分流。
+  * 首頁掛載 `AuthGate`，依據 Firebase 登入狀態自動分流。
 
 ### 2. `main_screen.dart`
 * **功能定位**：多平台響應式導覽主框架（App Shell / Navigation Host）。

@@ -34,7 +34,6 @@
     * `accentColor`：自訂強調色彩（懸停時外框線與底色自動融入此色系）。
     * `borderRadius`：圓角半徑（預設 `16.0`）。
     * `padding` / `margin`：自訂內距與外距。
-    * `hoverTranslateY`：懸停垂直位移量（預設 `-3.0`）。
 
 ---
 
