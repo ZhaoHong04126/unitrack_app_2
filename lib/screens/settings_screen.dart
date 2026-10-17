@@ -496,12 +496,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text('目前執行環境'),
             subtitle: Text(ResponsiveLayout.platformLabel(context)),
           ),
-          const Divider(height: 1, indent: 16, endIndent: 16),
-          ListTile(
-            leading: const Icon(Icons.cloud_done_outlined),
-            title: const Text('雲端同步服務'),
-            subtitle: const Text('Google Firebase Authentication & Cloud Firestore 連線中'),
-          ),
         ],
       ),
     );
