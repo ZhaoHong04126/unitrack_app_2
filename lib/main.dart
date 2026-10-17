@@ -21,8 +21,7 @@ void main() async {
 }
 
 class CampusAssistantApp extends StatelessWidget {
-  final Widget? home;
-  const CampusAssistantApp({super.key, this.home});
+  const CampusAssistantApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +43,7 @@ class CampusAssistantApp extends StatelessWidget {
             colorSchemeSeed: themeSettings.seedColor,
             brightness: Brightness.dark,
           ),
-          home: home ?? const AuthGate(),
+          home: const AuthGate(),
         );
       },
     );

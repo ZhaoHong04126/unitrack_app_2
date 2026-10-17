@@ -1,5 +1,4 @@
 // 課表畫面（支援週一至週五/週末彈性切換、課程新增/詳情/編輯/刪除、手機橫向滑動與桌面平鋪響應式佈局，串接 Cloud Firestore 雲端即時同步）
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../models/course.dart';
 import '../services/course_service.dart';
@@ -14,21 +13,7 @@ enum TimetableViewMode {
 }
 
 class TimetableScreen extends StatefulWidget {
-  /// 外部可傳入初始課程列表（預設為空列表，呈現優雅的空課表狀態）
-  final List<Course> initialCourses;
-
-  /// 當課表內容變更時可通知外部（供日後跨頁面同步使用）
-  final ValueChanged<List<Course>>? onCoursesChanged;
-
-  /// 自訂課程資料流（供測試或外部注入使用，預設使用 CourseService().getCoursesStream()）
-  final Stream<List<Course>>? coursesStream;
-
-  const TimetableScreen({
-    super.key,
-    this.initialCourses = const [],
-    this.onCoursesChanged,
-    this.coursesStream,
-  });
+  const TimetableScreen({super.key});
 
   @override
   State<TimetableScreen> createState() => _TimetableScreenState();
@@ -40,7 +25,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
 
   /// 課程狀態快取列表（由 Firestore 串流即時更新）
   List<Course> _courses = [];
-  List<Course>? _lastCourses;
 
   /// 是否手動切換顯示週末（週六、週日）
   bool _showWeekend = false;
@@ -67,9 +51,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
   void initState() {
     super.initState();
     _selectedWeekday = DateTime.now().weekday;
-    _courses = List<Course>.from(widget.initialCourses);
-    // 若初始課程包含週六或週日，或設定開啟週末，顯示週末
-    if (_courses.any((c) => c.weekday >= 6) || SettingsService().weekendTimetable) {
+    if (SettingsService().weekendTimetable) {
       _showWeekend = true;
     }
   }
@@ -89,10 +71,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
 
   int get _totalCredits =>
       _courses.fold<int>(0, (sum, course) => sum + course.credits);
-
-  void _notifyChanged() {
-    widget.onCoursesChanged?.call(List<Course>.unmodifiable(_courses));
-  }
 
   /// 查詢特定星期與節次所屬的課程
   Course? _findCourseAt(int weekday, int section) {
@@ -872,9 +850,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
     final colorScheme = theme.colorScheme;
 
     return StreamBuilder<List<Course>>(
-      stream: widget.coursesStream ?? CourseService().getCoursesStream(),
-      initialData:
-          widget.initialCourses.isNotEmpty ? widget.initialCourses : null,
+      stream: CourseService().getCoursesStream(),
       builder: (context, snapshot) {
         final isLoading =
             snapshot.connectionState == ConnectionState.waiting &&
@@ -883,14 +859,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
         final currentCourses =
             snapshot.data ?? (snapshot.hasError ? [] : _courses);
         _courses = currentCourses;
-
-        // 通知外部課程變更（若有監聽器）
-        if (!listEquals(_lastCourses, currentCourses)) {
-          _lastCourses = List<Course>.from(currentCourses);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _notifyChanged();
-          });
-        }
 
         final isMobile = ResponsiveLayout.isMobile(context);
 

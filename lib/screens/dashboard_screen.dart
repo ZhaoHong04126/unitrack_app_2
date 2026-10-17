@@ -15,34 +15,12 @@ import 'expense_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final ValueChanged<int>? onNavigateToTab;
-
-  /// 外部可傳入的動態資料參數（預設為空值或空集合，供日後串接真實 API 或單元測試使用）
   final String userName;
-  final String semesterLabel;
-  final String nextCourseTimeLabel;
-  final String weekdayLabel;
-  final String nextCourseTitle;
-  final String nextCourseLocation;
-  final String todayExpenseText;
-  final String creditProgressText;
-  final List<TodoItem> initialTodoItems;
-  final Stream<List<Course>>? coursesStream;
-  final DateTime? customNow;
 
   const DashboardScreen({
     super.key,
     this.onNavigateToTab,
     this.userName = '',
-    this.semesterLabel = '',
-    this.nextCourseTimeLabel = '',
-    this.weekdayLabel = '',
-    this.nextCourseTitle = '',
-    this.nextCourseLocation = '',
-    this.todayExpenseText = '',
-    this.creditProgressText = '',
-    this.initialTodoItems = const [],
-    this.coursesStream,
-    this.customNow,
   });
 
   @override
@@ -52,10 +30,9 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final ScrollController _scrollController = ScrollController();
 
-  late List<TodoItem> _todoItems = List<TodoItem>.from(widget.initialTodoItems);
+  List<TodoItem> _todoItems = [];
 
-  static const String _todosPrefKey = 'unitrack_todo_items_v2';
-  static const String _todosInitializedKey = 'unitrack_todo_initialized_v2';
+  static const String _todosPrefKey = 'unitrack_todo_items_v3';
 
   @override
   void initState() {
@@ -73,55 +50,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
 
-      // 若未由外部傳入 initialTodoItems，則從本地儲存讀取
-      if (widget.initialTodoItems.isEmpty) {
-        final todosJsonStr = prefs.getString(_todosPrefKey);
-        final isInitialized = prefs.getBool(_todosInitializedKey) ?? false;
+      // 清除舊版預設假待辦資料 Keys
+      await prefs.remove('unitrack_todo_items_v1');
+      await prefs.remove('unitrack_todo_initialized_v1');
+      await prefs.remove('unitrack_todo_items_v2');
+      await prefs.remove('unitrack_todo_initialized_v2');
 
-        if (todosJsonStr != null && todosJsonStr.isNotEmpty) {
-          final List<dynamic> decoded = jsonDecode(todosJsonStr);
-          final loadedItems = decoded
-              .map((item) => TodoItem.fromJson(item as Map<String, dynamic>))
-              .toList();
-          if (mounted) {
-            setState(() {
-              _todoItems = loadedItems;
-            });
-          }
-        } else if (!isInitialized) {
-          final initialDefaults = [
-            TodoItem(
-              id: 'init_1',
-              title: '確認本學期選課與學分門檻',
-              subtitle: '至教務系統確認選課結果及畢業學分進度',
-              category: '作業',
-              icon: Icons.assignment_outlined,
-              color: Colors.indigo,
-            ),
-            TodoItem(
-              id: 'init_2',
-              title: '預習今日課程教材與講義',
-              subtitle: '下載教學平台簡報並完成課前閱讀',
-              category: '課業',
-              icon: Icons.menu_book_rounded,
-              color: Colors.teal,
-            ),
-            TodoItem(
-              id: 'init_3',
-              title: '安排本週運動與生活預算',
-              subtitle: '維持規律校園作息，檢視日常支出',
-              category: '生活',
-              icon: Icons.favorite_outline,
-              color: Colors.pink,
-            ),
-          ];
-          await prefs.setBool(_todosInitializedKey, true);
-          await _saveTodosToPrefs(initialDefaults);
-          if (mounted) {
-            setState(() {
-              _todoItems = initialDefaults;
-            });
-          }
+      final todosJsonStr = prefs.getString(_todosPrefKey);
+      if (todosJsonStr != null && todosJsonStr.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(todosJsonStr);
+        final loadedItems = decoded
+            .map((item) => TodoItem.fromJson(item as Map<String, dynamic>))
+            .where((item) => !item.id.startsWith('init_'))
+            .toList();
+        if (mounted) {
+          setState(() {
+            _todoItems = loadedItems;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _todoItems = [];
+          });
         }
       }
     } catch (e) {
@@ -351,7 +302,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final greetingText = hasUser ? '早安，${widget.userName} 👋' : '早安 👋';
 
     return StreamBuilder<List<Course>>(
-      stream: widget.coursesStream ?? CourseService().getCoursesStream(),
+      stream: CourseService().getCoursesStream(),
       initialData: const [],
       builder: (context, snapshot) {
         final courses = snapshot.data ?? const <Course>[];
@@ -846,7 +797,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   /// 頂部今日校園生活總覽橫幅（具備即時雲端課表動態比對、狀態切換與跳轉導航）
   Widget _buildTodayOverviewBanner(BuildContext context, List<Course> courses) {
     final colorScheme = Theme.of(context).colorScheme;
-    final now = widget.customNow ?? DateTime.now();
+    final now = DateTime.now();
     final todayWeekday = now.weekday; // 1: Mon ... 7: Sun
     final weekdayName = Course.weekdayName(todayWeekday, short: true);
     final remainingTodos = _todoItems.where((e) => !e.isCompleted).length;
@@ -866,23 +817,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     bool isOngoing = false;
     IconData badgeIcon = Icons.schedule_rounded;
 
-    if (widget.nextCourseTitle.isNotEmpty) {
-      timeBadgeText = widget.nextCourseTimeLabel.isNotEmpty
-          ? widget.nextCourseTimeLabel
-          : '目前尚無課程';
-      weekdayText = widget.weekdayLabel.isNotEmpty
-          ? widget.weekdayLabel
-          : weekdayName;
-      courseTitleText = widget.nextCourseTitle;
-      courseLocationText = widget.nextCourseLocation.isNotEmpty
-          ? widget.nextCourseLocation
-          : '尚無教室與授課資訊';
-    } else if (todayCourses.isEmpty) {
+    if (todayCourses.isEmpty) {
       timeBadgeText = '今日無排定課程';
       weekdayText = weekdayName;
       courseTitleText = '今日尚無排定課程';
       courseLocationText = courses.isEmpty
-          ? '點擊此卡片前往課表新增本學期課程 📅'
+          ? '點擊下方課表卡片新增本學期課程 📅'
           : '今天沒有排定課程，好好放鬆或自主學習吧！';
       badgeIcon = Icons.event_available_rounded;
     } else {
@@ -958,12 +898,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     }
 
-    final expenseText = widget.todayExpenseText.isNotEmpty
-        ? widget.todayExpenseText
-        : 'NT\$ 0';
-    final creditText = widget.creditProgressText.isNotEmpty
-        ? widget.creditProgressText
-        : '$totalCredits / 128';
+    const expenseText = 'NT\$ 0';
+    final creditText = '$totalCredits / 128';
 
     final gradientColors = isOngoing
         ? [

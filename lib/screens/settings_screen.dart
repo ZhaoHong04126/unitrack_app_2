@@ -1,6 +1,7 @@
-// 系統設定畫面（支援個人檔案、外觀主題模式切換、學期與課表偏好、通知提醒、資料備份與版本資訊）
+// 系統設定畫面（支援個人檔案、外觀主題模式切換、通知提醒、資料清除與版本資訊）
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/course_service.dart';
 import '../services/settings_service.dart';
 import '../widgets/app_notification.dart';
 import '../widgets/responsive_layout.dart';
@@ -150,6 +151,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// 一鍵清除所有雲端課表、本地待辦與偏好設定資料
+  Future<void> _handleClearAllData() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('確認清除所有資料'),
+          ],
+        ),
+        content: const Text(
+          '確定要清除目前帳號的所有雲端課表、本地待辦事項與偏好設定嗎？此操作無法復原。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('確認清除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await CourseService().clearAllCourses();
+        await _settingsService.resetToDefaults();
+        if (mounted) {
+          setState(() {});
+          AppNotification.show(
+            context,
+            title: '資料已全部清除',
+            message: '已成功清空所有雲端課表、本地待辦與偏好設定。',
+            icon: Icons.delete_sweep_rounded,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          AppNotification.show(
+            context,
+            title: '清除失敗',
+            message: e.toString().replaceFirst('Exception: ', ''),
+            icon: Icons.error_outline,
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -185,6 +247,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // 2. 介面與外觀設定（僅保留主題模式）
             _buildSectionHeader('介面外觀與主題模式', Icons.palette_outlined),
             _buildThemeCard(context, colorScheme),
+            const SizedBox(height: 24),
+
+            // 3. 資料清理與重置
+            _buildSectionHeader('資料清理與重置', Icons.cleaning_services_outlined),
+            _buildDataManagementCard(context, colorScheme),
           ];
 
           final rightColumn = [
@@ -455,6 +522,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
         ],
+      ),
+    );
+  }
+
+  /// 資料清理與重置卡片
+  Widget _buildDataManagementCard(BuildContext context, ColorScheme colorScheme) {
+    return Card(
+      elevation: 0,
+      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        leading: Icon(Icons.delete_sweep_outlined, color: colorScheme.error),
+        title: const Text('清除所有資料'),
+        subtitle: const Text('清空目前帳號的雲端課表、本地待辦事項與偏好快取'),
+        trailing: FilledButton.tonalIcon(
+          style: FilledButton.styleFrom(
+            backgroundColor: colorScheme.errorContainer,
+            foregroundColor: colorScheme.onErrorContainer,
+          ),
+          onPressed: _handleClearAllData,
+          icon: const Icon(Icons.delete_forever_rounded, size: 18),
+          label: const Text('立即清除'),
+        ),
       ),
     );
   }
