@@ -4,7 +4,7 @@
 [![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev/)
 [![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20Web%20%7C%20Desktop-4CAF50?style=for-the-badge)](#)
-[![Version](https://img.shields.io/badge/Version-0.8.5%2B1-blue?style=for-the-badge)](#)
+[![Version](https://img.shields.io/badge/Version-0.9.0%2B1-blue?style=for-the-badge)](#)
 
 > **專為大學生打造的一站式綜合校園生活與學業管理助手**  
 > 具備高度自適應的現代化跨平台體驗（Android、Web、桌面端），整合雲端即時同步與直覺設計，讓課程安排與大學生活更加有條不紊。
@@ -17,7 +17,8 @@
 - [核心功能介紹](#-核心功能介紹)
   - [學期課程表（Timetable）](#1-學期課程表timetable)
   - [會員驗證與雲端同步（Auth & Cloud Sync）](#2-會員驗證與雲端同步auth--cloud-sync)
-  - [未來規劃模組（Roadmap）](#3-未來規劃功能roadmap)
+  - [系統設定與個人化體驗（Settings & Personalization）](#3-系統設定與個人化體驗settings--personalization)
+  - [未來規劃模組（Roadmap）](#4-未來規劃功能roadmap)
 - [技術棧（Tech Stack）](#-技術棧tech-stack)
 - [專案目錄結構](#-專案目錄結構)
 - [快速開始與安裝指南](#-快速開始與安裝指南)
@@ -64,7 +65,18 @@
 
 ---
 
-### 3. 未來規劃功能（Roadmap）
+### 3. 系統設定與個人化體驗（Settings & Personalization）
+* **個人帳號管理**：提供頭像與身分標籤、姓名即時修改並同步至 Firebase Auth 與 Cloud Firestore、密碼重設信發送、學系與學號設定。
+* **外觀主題與色彩自訂**：
+  * 支援深色模式、淺色模式以及跟隨系統切換。
+  * 內建 7 款 Material 3 主題種子色彩（經典靛藍、蔚藍晴空、海島藍綠、典雅紫羅蘭、活力暖橘、森林翠綠、櫻花淡粉），即時全域響應並持久化儲存。
+* **課表與學期自訂**：自由切換或輸入當前學年度與學期（即時連動儀表板與課表）、週末課表切換開關。
+* **提醒與推播偏好**：課前 10 分鐘提醒、早晨待辦摘要、夜間記帳提醒設定。
+* **設定備份與還原**：支援將個人設定匯出為 JSON 格式、一鍵複製至剪貼簿，以及一鍵還原出廠預設值。
+
+---
+
+### 4. 未來規劃功能（Roadmap）
 本專案已建置各模組的前端架構與頁面入口，未來將陸續完善以下功能：
 
 * 📅 **校園行事曆（Campus Calendar）**：學期重大日程、選退選週、期中/期末考排程整合與行事曆匯入。
@@ -82,9 +94,10 @@
 | **身分驗證** | **Firebase Authentication** (`firebase_auth`) | 提供安全的身分驗證與狀態流監聽 |
 | **雲端資料庫** | **Cloud Firestore** (`cloud_firestore`) | NoSQL 雲端即時同步資料庫 |
 | **底層配置** | **Firebase Core** (`firebase_core`) | 初始化跨平台 Firebase 專案配置 |
-| **本地設定** | **Shared Preferences** (`shared_preferences`) | 輕量使用者偏好與本地快取設定 |
+| **本地設定與快取** | **Shared Preferences** (`shared_preferences`) | 輕量使用者偏好、主題設定與本地待辦快取持久化 |
 | **介面架構** | **ResponsiveLayout** | 自適應行動端（Mobile）、平板（Tablet）與桌面端（Desktop）佈局架構 |
 | **狀態流管理** | **Stream-based Architecture** | 基於 Dart `Stream` 與 `StreamBuilder` 的即時反應式狀態更新機制 |
+| **全域主題響應** | **ValueNotifier / Listenable** | 基於 `ThemeSettings` 的零依賴輕量級全域動態主題更換機制 |
 
 ---
 
@@ -93,7 +106,7 @@
 ```text
 lib/
 ├── firebase_options.dart      # Firebase CLI 自動產生的跨平台連線配置檔
-├── main.dart                  # 應用程式啟動入口、全域主題 (Material 3) 與滑動行為配置
+├── main.dart                  # 應用程式啟動入口、Firebase 初始化與全域主題動態配置
 ├── main_screen.dart           # 多平台響應式導覽主框架（App Shell / 側邊欄與底欄自適應導航）
 │
 ├── models/                    # 資料結構與實體模型層 (Data Models)
@@ -106,19 +119,21 @@ lib/
 │   │   ├── login_screen.dart  # 會員登入畫面
 │   │   └── register_screen.dart # 會員註冊畫面
 │   ├── calendar_screen.dart   # 校園行事曆畫面
-│   ├── dashboard_screen.dart  # 首頁儀表板總覽畫面
+│   ├── dashboard_screen.dart  # 首頁儀表板總覽畫面（整合即時上課狀態、待辦管理與捷徑）
 │   ├── expense_screen.dart    # 記帳本模組畫面
 │   ├── graduation_screen.dart # 畢業學分審查畫面
-│   ├── timetable_screen.dart  # 學期課程表核心畫面（單日時間軸 / 整週檢視雙模式）
+│   ├── settings_screen.dart   # 系統設定畫面（帳號管理、外觀主題、課表偏好與資料備份）
+│   ├── timetable_screen.dart  # 學期課程表核心畫面（單日時間軸 / 整週檢視雙模式、即時同步）
 │   └── screens.md             # 畫面層設計規範與功能說明
 │
 ├── services/                  # 商業邏輯與資料存取服務層 (Services)
 │   ├── auth_service.dart      # Firebase Auth 封裝服務（註冊、登入、登出與中文錯誤處理）
 │   ├── course_service.dart    # Cloud Firestore 課表資料流監聽與 CRUD 雲端服務
+│   ├── settings_service.dart  # 系統偏好、主題設定、通知開關與本地持久化服務
 │   └── services.md            # 服務層架構規劃說明
 │
 └── widgets/                   # 跨模組共用元件與自適應工具 (Shared Widgets)
-    ├── app_notification.dart  # 輕量級浮動通知提示元件
+    ├── app_notification.dart  # 跨平台自適應懸浮通知與 SnackBar 工具
     ├── hoverable_card.dart    # 支援滑鼠懸停反饋與游標變化的互動卡片
     ├── responsive_layout.dart # 螢幕斷點響應式佈局輔助元件 (Mobile / Tablet / Desktop)
     └── widgets.md             # 元件庫使用與擴充規範
