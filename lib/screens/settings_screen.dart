@@ -320,12 +320,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 960),
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-            children: [
+      body: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        children: [
               // 1. 個人檔案與身分卡片
               _buildSectionHeader('個人帳號與基本資料', Icons.person_outline_rounded),
               _buildProfileCard(context, colorScheme),
@@ -371,8 +368,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 36),
             ],
           ),
-        ),
-      ),
     );
   }
 
