@@ -1,6 +1,5 @@
 // 系統設定畫面（支援個人檔案、外觀主題模式切換、學期與課表偏好、通知提醒、資料備份與版本資訊）
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
 import '../services/settings_service.dart';
 import '../widgets/app_notification.dart';
@@ -29,19 +28,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _email = '';
   String _initial = 'U';
 
-  // 輸入控制器（僅保留學期自訂）
-  final TextEditingController _semesterController = TextEditingController();
-
   @override
   void initState() {
     super.initState();
     _loadAllSettings();
-  }
-
-  @override
-  void dispose() {
-    _semesterController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadAllSettings() async {
@@ -57,7 +47,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _displayName = name;
         _email = email;
         _initial = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'U';
-        _semesterController.text = _settingsService.semester;
         _isLoading = false;
       });
     }
@@ -161,131 +150,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// 儲存當前學期偏好
-  Future<void> _saveSemesterInfo() async {
-    await _settingsService.setSemester(_semesterController.text);
-    widget.onProfileUpdated?.call();
-    if (mounted) {
-      AppNotification.show(
-        context,
-        title: '已儲存設定',
-        message: '當前學年度與學期已更新。',
-        icon: Icons.check_circle_outline,
-      );
-    }
-  }
-
-  /// 匯出設定對話框
-  void _showExportDialog() {
-    final jsonStr = _settingsService.exportSettingsJson();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.file_download_outlined),
-            SizedBox(width: 8),
-            Text('匯出個人與系統設定'),
-          ],
-        ),
-        content: SizedBox(
-          width: 500,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('以下為您目前在 UniTrack Pro 的各項偏好與環境設定：'),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                constraints: const BoxConstraints(maxHeight: 220),
-                decoration: BoxDecoration(
-                  color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: SingleChildScrollView(
-                  child: SelectableText(
-                    jsonStr,
-                    style: const TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.copy_rounded, size: 18),
-            label: const Text('複製至剪貼簿'),
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: jsonStr));
-              Navigator.of(ctx).pop();
-              AppNotification.show(
-                context,
-                title: '已複製',
-                message: '設定 JSON 已成功複製到剪貼簿。',
-                icon: Icons.assignment_turned_in_outlined,
-              );
-            },
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('關閉'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 重設原廠設定確認
-  Future<void> _handleResetDefaults() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.restart_alt_rounded, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('重設所有偏好設定？'),
-          ],
-        ),
-        content: const Text(
-          '此操作會將深淺模式、通知提醒及預設學期恢復為系統出廠狀態，但不會刪除雲端課表與記帳資料。',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('確認重設'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && mounted) {
-      await _settingsService.resetToDefaults();
-      await _loadAllSettings();
-      widget.onProfileUpdated?.call();
-      if (mounted) {
-        AppNotification.show(
-          context,
-          title: '已重設設定',
-          message: '偏好設定已恢復為出廠預設值。',
-          icon: Icons.refresh_rounded,
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -307,67 +171,87 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text('系統設定'),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: '匯出設定 JSON',
-            icon: const Icon(Icons.file_download_outlined),
-            onPressed: _showExportDialog,
-          ),
-          IconButton(
-            tooltip: '還原預設設定',
-            icon: const Icon(Icons.restart_alt_rounded),
-            onPressed: _handleResetDefaults,
-          ),
-        ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        children: [
-              // 1. 個人檔案與身分卡片
-              _buildSectionHeader('個人帳號與基本資料', Icons.person_outline_rounded),
-              _buildProfileCard(context, colorScheme),
-              const SizedBox(height: 24),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isTwoColumn = constraints.maxWidth >= 840;
 
-              // 2. 介面與外觀設定（僅保留主題模式）
-              _buildSectionHeader('介面外觀與主題模式', Icons.palette_outlined),
-              _buildThemeCard(context, colorScheme),
-              const SizedBox(height: 24),
+          final leftColumn = [
+            // 1. 個人檔案與身分卡片
+            _buildSectionHeader('個人帳號與基本資料', Icons.person_outline_rounded),
+            _buildProfileCard(context, colorScheme),
+            const SizedBox(height: 24),
 
-              // 3. 課表與學期偏好
-              _buildSectionHeader('課表與學業偏好', Icons.school_outlined),
-              _buildAcademicCard(context, colorScheme),
-              const SizedBox(height: 24),
+            // 2. 介面與外觀設定（僅保留主題模式）
+            _buildSectionHeader('介面外觀與主題模式', Icons.palette_outlined),
+            _buildThemeCard(context, colorScheme),
+          ];
 
-              // 4. 通知與提醒偏好
-              _buildSectionHeader('通知與提醒通知', Icons.notifications_none_rounded),
-              _buildNotificationsCard(context, colorScheme),
-              const SizedBox(height: 24),
+          final rightColumn = [
+            // 4. 通知與提醒偏好
+            _buildSectionHeader('通知與提醒通知', Icons.notifications_none_rounded),
+            _buildNotificationsCard(context, colorScheme),
+            const SizedBox(height: 24),
 
-              // 5. 系統與版本資訊
-              _buildSectionHeader('系統狀態與版本', Icons.info_outline_rounded),
-              _buildSystemInfoCard(context, colorScheme),
-              const SizedBox(height: 32),
+            // 5. 系統與版本資訊
+            _buildSectionHeader('系統狀態與版本', Icons.info_outline_rounded),
+            _buildSystemInfoCard(context, colorScheme),
+            const SizedBox(height: 32),
 
-              // 6. 登出帳號操作區
-              if (widget.onSignOut != null)
-                Center(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: colorScheme.error,
-                      side: BorderSide(color: colorScheme.error.withValues(alpha: 0.6)),
-                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+            // 6. 登出帳號操作區
+            if (widget.onSignOut != null)
+              Center(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colorScheme.error,
+                    side: BorderSide(color: colorScheme.error.withValues(alpha: 0.6)),
+                    padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    icon: const Icon(Icons.logout_rounded),
-                    label: const Text('登出目前帳號', style: TextStyle(fontWeight: FontWeight.bold)),
-                    onPressed: widget.onSignOut,
                   ),
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('登出目前帳號', style: TextStyle(fontWeight: FontWeight.bold)),
+                  onPressed: widget.onSignOut,
                 ),
-              const SizedBox(height: 36),
+              ),
+            const SizedBox(height: 36),
+          ];
+
+          if (isTwoColumn) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: leftColumn,
+                    ),
+                  ),
+                  const SizedBox(width: 24),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: rightColumn,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+            children: [
+              ...leftColumn,
+              const SizedBox(height: 24),
+              ...rightColumn,
             ],
-          ),
+          );
+        },
+      ),
     );
   }
 
@@ -524,58 +408,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         );
       },
-    );
-  }
-
-  /// 課表與學期偏好卡片
-  Widget _buildAcademicCard(BuildContext context, ColorScheme colorScheme) {
-    return Card(
-      elevation: 0,
-      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _semesterController,
-                    decoration: const InputDecoration(
-                      labelText: '當前學年度與學期',
-                      hintText: '例：113學年度 第 1 學期',
-                      prefixIcon: Icon(Icons.date_range_outlined),
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                    ),
-                    onSubmitted: (_) => _saveSemesterInfo(),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.tonal(
-                  onPressed: _saveSemesterInfo,
-                  child: const Text('更新學期'),
-                ),
-              ],
-            ),
-            const Divider(height: 28),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('課表預設顯示週末（週六、週日）'),
-              subtitle: const Text('開啟後課表將擴增為 7 天顯示，適用有週末實習或假日進修課程者'),
-              value: _settingsService.weekendTimetable,
-              onChanged: (val) async {
-                await _settingsService.setWeekendTimetable(val);
-                setState(() {});
-              },
-            ),
-          ],
-        ),
-      ),
     );
   }
 

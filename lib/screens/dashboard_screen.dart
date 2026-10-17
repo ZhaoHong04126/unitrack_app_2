@@ -52,13 +52,8 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final ScrollController _scrollController = ScrollController();
 
-  late String _semesterLabel = widget.semesterLabel.isNotEmpty
-      ? widget.semesterLabel
-      : '113學年度 第 1 學期';
-
   late List<TodoItem> _todoItems = List<TodoItem>.from(widget.initialTodoItems);
 
-  static const String _semesterPrefKey = 'unitrack_semester_info_v1';
   static const String _todosPrefKey = 'unitrack_todo_items_v2';
   static const String _todosInitializedKey = 'unitrack_todo_initialized_v2';
 
@@ -77,16 +72,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Future<void> _loadPreferences() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-
-      // 讀取自訂學期資訊
-      if (widget.semesterLabel.isEmpty) {
-        final savedSemester = prefs.getString(_semesterPrefKey);
-        if (savedSemester != null && savedSemester.isNotEmpty && mounted) {
-          setState(() {
-            _semesterLabel = savedSemester;
-          });
-        }
-      }
 
       // 若未由外部傳入 initialTodoItems，則從本地儲存讀取
       if (widget.initialTodoItems.isEmpty) {
@@ -364,7 +349,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final colorScheme = theme.colorScheme;
     final hasUser = widget.userName.trim().isNotEmpty;
     final greetingText = hasUser ? '早安，${widget.userName} 👋' : '早安 👋';
-    final subTitleText = _semesterLabel;
 
     return StreamBuilder<List<Course>>(
       stream: widget.coursesStream ?? CourseService().getCoursesStream(),
@@ -379,24 +363,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             scrolledUnderElevation: 2,
             backgroundColor: colorScheme.surface,
             leading: ResponsiveLayout.buildDrawerLeading(context),
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  greetingText,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  subTitleText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
+            title: Text(
+              greetingText,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             actions: [
               IconButton(
