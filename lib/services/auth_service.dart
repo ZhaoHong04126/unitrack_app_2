@@ -42,11 +42,12 @@ class AuthService {
   }
 
   /// 使用電子信箱與密碼進行註冊
-  /// 可額外傳入 [displayName] 於 Firebase Auth 及 Firestore 儲存個人資訊
+  /// 可額外傳入 [displayName] 與 [enrollmentYear] 於 Firebase Auth 及 Firestore 儲存個人資訊
   Future<UserCredential> signUpWithEmail({
     required String email,
     required String password,
     String? displayName,
+    String? enrollmentYear,
   }) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
@@ -56,6 +57,7 @@ class AuthService {
 
       final user = credential.user;
       final trimmedName = displayName?.trim();
+      final trimmedEnrollmentYear = enrollmentYear?.trim();
 
       if (user != null && trimmedName != null && trimmedName.isNotEmpty) {
         await user.updateDisplayName(trimmedName);
@@ -68,6 +70,7 @@ class AuthService {
             'uid': user.uid,
             'email': user.email,
             'displayName': trimmedName ?? '',
+            'enrollmentYear': trimmedEnrollmentYear ?? '',
             'createdAt': FieldValue.serverTimestamp(),
             'lastLoginAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));

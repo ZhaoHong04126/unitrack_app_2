@@ -14,6 +14,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _enrollmentYearController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -25,6 +26,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _enrollmentYearController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -42,6 +44,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         email: _emailController.text,
         password: _passwordController.text,
         displayName: _nameController.text.trim(),
+        enrollmentYear: _enrollmentYearController.text.trim(),
       );
 
       if (mounted) {
@@ -191,6 +194,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               borderRadius: BorderRadius.circular(14),
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // 入學年份欄位
+                        TextFormField(
+                          controller: _enrollmentYearController,
+                          enabled: !_isLoading,
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.next,
+                          decoration: InputDecoration(
+                            labelText: '入學年份',
+                            hintText: '入學年份，例如：112 或 2023',
+                            prefixIcon: const Icon(Icons.school_outlined),
+                            filled: true,
+                            fillColor: colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.3),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return '請輸入入學年份';
+                            }
+                            final year = int.tryParse(value.trim());
+                            if (year == null ||
+                                !((year >= 80 && year <= 200) ||
+                                    (year >= 1990 && year <= 2100))) {
+                              return '請輸入有效的入學年份（例如：112 或 2023）';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 16),
 

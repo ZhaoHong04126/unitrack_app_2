@@ -43,10 +43,12 @@ void main() {
 
     // 驗證已導向註冊頁面
     expect(find.text('建立新帳號'), findsOneWidget);
+    expect(find.text('入學年份'), findsOneWidget);
     expect(find.text('設定密碼'), findsOneWidget);
     expect(find.text('確認密碼'), findsOneWidget);
 
-    // 輸入不符格式之密碼進行驗證
+    // 輸入不符格式之密碼與入學年份進行驗證
+    final enrollmentYearField = find.widgetWithText(TextFormField, '入學年份');
     final passwordField = find.widgetWithText(TextFormField, '設定密碼');
     final confirmPasswordField = find.widgetWithText(TextFormField, '確認密碼');
 
@@ -60,6 +62,22 @@ void main() {
     await tester.tap(registerBtn);
     await tester.pumpAndSettle();
 
+    expect(find.text('請輸入入學年份'), findsOneWidget);
     expect(find.text('兩次輸入的密碼不一致'), findsOneWidget);
+
+    // 輸入無效的入學年份格式
+    await tester.enterText(enrollmentYearField, '12');
+    await tester.tap(registerBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('請輸入有效的入學年份（例如：112 或 2023）'), findsOneWidget);
+
+    // 輸入有效的入學年份（民國年或西元年）後錯誤提示應消失
+    await tester.enterText(enrollmentYearField, '112');
+    await tester.tap(registerBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('請輸入入學年份'), findsNothing);
+    expect(find.text('請輸入有效的入學年份（例如：112 或 2023）'), findsNothing);
   });
 }
